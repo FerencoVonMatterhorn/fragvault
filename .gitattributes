@@ -1,0 +1,12 @@
+# Shell scripts must keep LF endings — CRLF breaks them on Linux and in Azure
+# Cloud Shell ("\r: command not found"), and this repo is edited on Windows.
+*.sh text eol=lf
+
+# Same reasoning for anything CI or a Linux host executes verbatim.
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Terraform runs on Windows locally and Linux in CI; pin these so the lock
+# file and configs don't churn line endings between the two.
+*.tf text eol=lf
+*.hcl text eol=lf

@@ -36,6 +36,14 @@ One small Azure Linux VM runs nginx as the front door: it reverse-proxies `/api/
 
 `terraform apply` is intentionally never run from the AI build sandbox that produced this code (see below) — it runs via GitHub Actions CI using an Azure service principal.
 
+## Terraform state
+
+State lives in an Azure Storage account (`stfragvaulttfstate`, container `tfstate`) in its own resource group, created by `infrastructure/bootstrap/bootstrap-tfstate.sh` rather than by Terraform. Two reasons for keeping it outside: a state account managed by its own state is destroyable by the run that depends on it, and the separate resource group means a `terraform destroy` of the app infrastructure leaves state intact.
+
+Configuration choices there are all cost-driven — Standard LRS (no geo-replication), hot tier, no private endpoint (that alone would cost more per month than everything else in Phase 1 combined). The state file is tens of KB, so the account runs at cents per month. Blob versioning and 7-day soft delete are on because they're free at that size; a lifecycle rule prunes versions after 30 days so they can't accumulate. Locking uses the backend's built-in blob lease — no separate lock resource to pay for.
+
+Auth is Entra ID (`use_azuread_auth`), not a storage access key, so the only credentials CI holds are the service principal's. Shared key access is disabled on the account; anyone running Terraform locally needs the "Storage Blob Data Contributor" role on it.
+
 ## A note on how this was built
 
 This codebase was scaffolded inside a network-sandboxed cloud AI environment that, at various points, could not reach npm, PyPI, Azure's management API, or GitHub's API depending on evolving account/org network settings. That's why: the backend avoids third-party dependencies (buildable/testable even under those restrictions), the frontend and Terraform were validated where possible (`terraform validate` against the real provider; the frontend could not run `npm install` in that environment and should be verified in CI or locally before being trusted), and infra apply + repo push route through GitHub Actions / a manually-created repo rather than being run directly by the assistant. Worth knowing if something here looks like it was designed around an odd constraint — it was.

@@ -12,9 +12,21 @@ terraform {
     }
   }
 
-  # Remote state: configure a backend once the storage account for it exists
-  # (chicken/egg — bootstrap that by hand once, then wire it in here).
-  # backend "azurerm" {}
+  # Remote state lives in a storage account created outside Terraform by
+  # bootstrap/bootstrap-tfstate.sh — see that script for why. State locking
+  # comes free with this backend (blob lease), so no lock table to pay for.
+  #
+  # use_azuread_auth means the backend authenticates with the same service
+  # principal as the provider (ARM_CLIENT_ID/SECRET/TENANT_ID), so no storage
+  # access key needs to exist as a GitHub secret. The principal needs the
+  # "Storage Blob Data Contributor" role on the account.
+  backend "azurerm" {
+    resource_group_name  = "rg-fragvault-tfstate"
+    storage_account_name = "stfragvaulttfstate"
+    container_name       = "tfstate"
+    key                  = "poc.terraform.tfstate"
+    use_azuread_auth     = true
+  }
 }
 
 provider "azurerm" {

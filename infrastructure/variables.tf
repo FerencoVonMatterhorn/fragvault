@@ -7,7 +7,11 @@ variable "project_name" {
 variable "location" {
   description = "Azure region for all resources."
   type        = string
-  default     = "westeurope"
+  # northeurope (Ireland), not westeurope: it's the cheapest EU region for the
+  # SKUs here, and westeurope is currently capacity-restricted — it rejects
+  # new resources from new subscriptions with a misleading
+  # "(RequestDisallowedByAzure) region is currently not accepting new customers".
+  default = "northeurope"
 }
 
 variable "environment" {

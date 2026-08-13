@@ -33,12 +33,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.9.8"
+          terraform_version: "1.15.8"
 
+      # Remote state backend is configured in providers.tf and authenticates
+      # with the ARM_* service principal above — no storage access key secret.
       - run: terraform init
-        # Uncomment once a remote state backend is configured in providers.tf:
-        # env:
-        #   ARM_ACCESS_KEY: ${{ secrets.TFSTATE_STORAGE_ACCESS_KEY }}
 
       - run: terraform plan -out=tfplan
 
