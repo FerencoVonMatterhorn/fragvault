@@ -16,6 +16,19 @@ export interface Match {
   discovered_at: string;
 }
 
+/**
+ * The backend couldn't be reached at all — it's down, restarting, or the
+ * reverse proxy has no upstream to talk to. Distinct from an error the
+ * backend itself returned, because the frontend can still render usefully:
+ * this is "come back in a minute", not "the app is broken".
+ */
+export class BackendUnavailableError extends Error {
+  constructor(message = "backend unavailable") {
+    super(message);
+    this.name = "BackendUnavailableError";
+  }
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -25,8 +38,18 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 }
 
 export async function getMe(): Promise<Me | null> {
-  const res = await fetch("/api/me", { credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch("/api/me", { credentials: "include" });
+  } catch {
+    // fetch only rejects on network-level failure (connection refused, DNS,
+    // offline). Any HTTP status, including 502, resolves normally.
+    throw new BackendUnavailableError();
+  }
   if (res.status === 401) return null;
+  // 5xx here is nearly always the reverse proxy reporting that the backend
+  // isn't answering, rather than the backend rejecting the request.
+  if (res.status >= 500) throw new BackendUnavailableError(`${res.status} ${res.statusText}`);
   return jsonOrThrow<Me>(res);
 }
 

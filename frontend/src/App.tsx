@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { getMe, getMatches, submitOnboarding, loginUrl, type Me, type Match } from "./api";
+import { getMe, getMatches, submitOnboarding, loginUrl, BackendUnavailableError, type Me, type Match } from "./api";
 
 type LoadState = "loading" | "ready" | "error";
 
+// "offline" is deliberately not fatal. The frontend is a static bundle served
+// independently of the backend, so when the backend is down the page should
+// still render and say so, rather than blanking out — the two are deployed
+// as separate containers and fail separately.
+type MeState = LoadState | "offline";
+
 export default function App() {
   const [me, setMe] = useState<Me | null>(null);
-  const [meState, setMeState] = useState<LoadState>("loading");
+  const [meState, setMeState] = useState<MeState>("loading");
 
   useEffect(() => {
     getMe()
@@ -13,27 +19,60 @@ export default function App() {
         setMe(m);
         setMeState("ready");
       })
-      .catch(() => setMeState("error"));
+      .catch((err) => setMeState(err instanceof BackendUnavailableError ? "offline" : "error"));
   }, []);
 
   if (meState === "loading") return <Centered>Loading…</Centered>;
+  // Reserved for the backend answering with something unexpected, which does
+  // suggest a real bug rather than an absent service.
   if (meState === "error") return <Centered>Something went wrong talking to the backend.</Centered>;
+
+  const offline = meState === "offline";
 
   return (
     <div style={{ maxWidth: 640, margin: "4rem auto", fontFamily: "system-ui, sans-serif" }}>
       <h1>FragVault</h1>
-      {me ? <LoggedIn me={me} /> : <LoggedOut />}
+      {offline && <OfflineNotice />}
+      {me ? <LoggedIn me={me} /> : <LoggedOut backendOffline={offline} />}
     </div>
   );
 }
 
-function LoggedOut() {
+function OfflineNotice() {
+  return (
+    <p
+      role="status"
+      style={{
+        background: "#fff4e5",
+        border: "1px solid #ffb74d",
+        borderRadius: 8,
+        padding: "0.75rem 1rem",
+        fontSize: "0.95rem",
+      }}
+    >
+      Can't reach the backend right now, so signing in and match history are unavailable. Nothing is wrong on your end —
+      try again in a minute.
+    </p>
+  );
+}
+
+function LoggedOut({ backendOffline = false }: { backendOffline?: boolean }) {
+  const buttonStyle = { padding: "0.6rem 1.2rem", fontSize: "1rem" };
+
   return (
     <div>
       <p>Sign in with Steam to see your recent CS2 matches.</p>
-      <a href={loginUrl()}>
-        <button style={{ padding: "0.6rem 1.2rem", fontSize: "1rem" }}>Log in with Steam</button>
-      </a>
+      {/* Not wrapped in the login link while offline: /auth/steam/login goes
+          through the same backend, so following it would only produce a 502. */}
+      {backendOffline ? (
+        <button style={buttonStyle} disabled>
+          Log in with Steam
+        </button>
+      ) : (
+        <a href={loginUrl()}>
+          <button style={buttonStyle}>Log in with Steam</button>
+        </a>
+      )}
     </div>
   );
 }
