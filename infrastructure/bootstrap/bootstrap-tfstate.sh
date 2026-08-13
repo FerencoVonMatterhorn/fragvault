@@ -44,8 +44,13 @@ GRANT_CALLER="${GRANT_CALLER:-true}"
 # CI also needs control-plane rights to create the app infrastructure itself.
 # Subscription scope rather than resource-group scope because Terraform
 # creates the resource group too, so there's nothing narrower to scope to
-# until it exists. Set to false if you'd rather grant this by hand — see the
-# note in ../../docs/architecture.md about tightening it.
+# until it exists. Set to false if you'd rather grant this by hand.
+#
+# To tighten it later: create the app resource group by hand, change the
+# Terraform config to read it as a data source instead of creating it, and
+# scope Contributor to that group instead of the whole subscription. That
+# trades one manual step for a much smaller blast radius if the CI
+# credentials ever leak — worth doing before this holds anything real.
 GRANT_CI_SUBSCRIPTION="${GRANT_CI_SUBSCRIPTION:-true}"
 CI_SUBSCRIPTION_ROLE="${CI_SUBSCRIPTION_ROLE:-Contributor}"
 

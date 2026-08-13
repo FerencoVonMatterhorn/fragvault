@@ -1,5 +1,6 @@
 # Small Linux VM hosting the Phase 1 frontend (static build) + backend (Go
-# systemd service) behind nginx. See /docs/architecture.md for the topology.
+# systemd service) behind nginx, which reverse-proxies /api and /auth to the
+# backend and serves the built frontend as static files.
 
 resource "azurerm_virtual_network" "hosting" {
   count               = var.enable_hosting_vm ? 1 : 0

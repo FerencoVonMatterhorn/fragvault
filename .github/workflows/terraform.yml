@@ -1,0 +1,147 @@
+name: Terraform
+
+# One run does both: plan happens automatically, then the apply job waits for
+# a human to click "Review deployments" in that same run. No second workflow
+# to trigger by hand, and the thing you approve is the run you just read.
+#
+# The pause comes from `environment: production` below combined with required
+# reviewers configured on that environment in repo settings. WITHOUT those
+# reviewers configured, there is no pause and every push to main applies
+# immediately — see the comment on the apply job.
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write # to post the plan as a PR comment
+
+# Terraform locks the state blob, so overlapping runs would fail on the lock.
+# Never cancel in progress — an interrupted apply leaves state and reality
+# out of sync, which is worse than a queued run.
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: "1.15.8"
+
+jobs:
+  plan:
+    name: terraform plan
+    runs-on: ubuntu-latest
+    # Pull requests from forks don't get repository secrets, so a plan from
+    # one can't authenticate and would fail confusingly. This repo is public,
+    # so that case is real.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        working-directory: infrastructure
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
+      TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          # The wrapper rewrites stdout, which mangles the captured plan text.
+          terraform_wrapper: false
+
+      - run: terraform fmt -check -diff
+      - run: terraform init -input=false
+
+      - name: Plan
+        id: plan
+        shell: bash # for pipefail; the default shell doesn't set it
+        run: terraform plan -no-color -input=false -out=tfplan | tee plan.txt
+
+      - name: Format plan for humans
+        id: format
+        if: always() && steps.plan.outcome != 'skipped'
+        shell: bash
+        run: |
+          # The tfplan binary is deliberately never uploaded as an artifact.
+          # Plan files embed resource attributes in the clear, including
+          # anything marked sensitive, and on a public repo anyone could
+          # download it. The apply job re-plans instead.
+          rm -f tfplan
+
+          # A GitHub comment caps out at 65536 characters.
+          if [ "$(wc -c < plan.txt)" -gt 60000 ]; then
+            head -c 60000 plan.txt > plan.short
+            printf '\n... truncated — see the job log for the full plan\n' >> plan.short
+            mv plan.short plan.txt
+          fi
+
+          {
+            echo '### Terraform plan'
+            echo
+            echo '<details><summary>Show plan</summary>'
+            echo
+            echo '```terraform'
+            cat plan.txt
+            echo '```'
+            echo
+            echo '</details>'
+          } > plan.md
+
+          cat plan.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Gated on the format step, not just always(): if init fails, plan is
+      # skipped, plan.md is never written, and this would fail on a missing
+      # file instead of leaving the real error as the visible one.
+      - name: Comment plan on the PR
+        if: always() && github.event_name == 'pull_request' && steps.format.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file plan.md
+
+  apply:
+    name: terraform apply (needs approval)
+    needs: plan
+    # Never on pull requests — only on main, or a manual dispatch.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # THIS IS THE GATE. Configure the "production" environment in repo
+    # Settings → Environments with required reviewers, or this job applies
+    # with no approval step at all. With reviewers set, the run pauses here
+    # and shows a "Review deployments" button; approving it continues.
+    environment: production
+    defaults:
+      run:
+        working-directory: infrastructure
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
+      TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - run: terraform init -input=false
+
+      # Re-planned rather than reusing the plan job's file, for the artifact
+      # reason above. The apply log prints this plan too, so what got applied
+      # is still on the record.
+      - run: terraform plan -input=false -out=tfplan
+
+      - name: Apply
+        run: terraform apply -auto-approve tfplan

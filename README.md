@@ -2,15 +2,12 @@
 
 CS2 highlight discovery and creation. Phase 1 (this repo's current state): sign in with Steam, discover recent matches, list them.
 
-See [`docs/architecture.md`](docs/architecture.md) for the design and its known limitations, and [`docs/adr-001-no-deps-phase1.md`](docs/adr-001-no-deps-phase1.md) for why the backend has no third-party dependencies.
-
 ## Layout
 
 - `frontend/` — React + TypeScript + Vite POC UI
 - `backend/` — Go HTTP API (Steam auth + match polling)
 - `function-app/` — placeholder for the later demo-rendering phase
-- `infrastructure/` — Terraform for all infra (only the hosting VM is enabled by default — see `docs/architecture.md`)
-- `docs/` — architecture notes and ADRs
+- `infrastructure/` — Terraform for all infra (only the hosting VM is enabled by default; the rest sits behind `enable_*` variables so nothing bills before its phase starts)
 
 ## Running locally
 
