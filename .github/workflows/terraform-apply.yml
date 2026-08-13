@@ -21,7 +21,7 @@ jobs:
     environment: production
     defaults:
       run:
-        working-directory: infra
+        working-directory: infrastructure
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}

@@ -9,7 +9,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the design and its known 
 - `frontend/` — React + TypeScript + Vite POC UI
 - `backend/` — Go HTTP API (Steam auth + match polling)
 - `function-app/` — placeholder for the later demo-rendering phase
-- `infra/` — Terraform for all infra (only the hosting VM is enabled by default — see `docs/architecture.md`)
+- `infrastructure/` — Terraform for all infra (only the hosting VM is enabled by default — see `docs/architecture.md`)
 - `docs/` — architecture notes and ADRs
 
 ## Running locally
@@ -37,4 +37,4 @@ The Vite dev server proxies `/api` and `/auth` to `http://localhost:8080` (see `
 
 ## Deploying
 
-Terraform in `/infra` provisions the Azure VM (and, later, the other infra pieces). Applied via GitHub Actions CI, not locally — see the workflow in `.github/workflows/`.
+Terraform in `/infrastructure` provisions the Azure VM (and, later, the other infra pieces). Applied via GitHub Actions CI, not locally — see the workflow in `.github/workflows/`.

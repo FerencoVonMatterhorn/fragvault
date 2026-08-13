@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra
+        working-directory: infrastructure
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

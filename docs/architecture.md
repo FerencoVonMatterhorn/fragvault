@@ -28,11 +28,11 @@ This was originally a workaround for the build sandbox's package-registry restri
 
 ## Deployment topology
 
-One small Azure Linux VM runs nginx as the front door: it reverse-proxies `/api/*` and `/auth/*` to the Go backend (a systemd service) and serves the Vite production build as static files for everything else. See `/infra` for the Terraform and `/docs/adr-001-no-deps-phase1.md`.
+One small Azure Linux VM runs nginx as the front door: it reverse-proxies `/api/*` and `/auth/*` to the Go backend (a systemd service) and serves the Vite production build as static files for everything else. See `/infrastructure` for the Terraform and `/docs/adr-001-no-deps-phase1.md`.
 
 ## Infra-as-code scope
 
-`/infra` models the full target architecture — hosting VM, blob storage for rendered clips, an Azure Function App for demo rendering, and a GPU VM (running the CS2 golden image) for the actual rendering workload — but only the hosting VM is enabled by default (`enable_hosting_vm = true`, everything else `false`). The other three are real, valid Terraform, just gated behind variables so `terraform apply` today doesn't start provisioning — and billing for — infrastructure nothing uses yet. Flip each on when its phase actually starts.
+`/infrastructure` models the full target architecture — hosting VM, blob storage for rendered clips, an Azure Function App for demo rendering, and a GPU VM (running the CS2 golden image) for the actual rendering workload — but only the hosting VM is enabled by default (`enable_hosting_vm = true`, everything else `false`). The other three are real, valid Terraform, just gated behind variables so `terraform apply` today doesn't start provisioning — and billing for — infrastructure nothing uses yet. Flip each on when its phase actually starts.
 
 `terraform apply` is intentionally never run from the AI build sandbox that produced this code (see below) — it runs via GitHub Actions CI using an Azure service principal.
 

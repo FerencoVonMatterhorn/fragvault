@@ -8,13 +8,13 @@ frontend/dist/
 frontend/.vite/
 
 # Terraform
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.*
-infra/*.tfplan
-infra/*.tfvars
-!infra/*.tfvars.example
-infra/.terraform.lock.hcl.backup
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.*
+infrastructure/*.tfplan
+infrastructure/*.tfvars
+!infrastructure/*.tfvars.example
+infrastructure/.terraform.lock.hcl.backup
 
 # Editors / OS
 .DS_Store
