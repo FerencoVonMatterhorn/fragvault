@@ -1,0 +1,42 @@
+#cloud-config
+# Runs once, on the VM's first boot. Rendered by templatefile() from
+# vm_hosting.tf — ${admin_username} is a Terraform substitution, not shell.
+#
+# Changing this file replaces the VM (custom_data forces a new resource), so
+# treat it as image definition, not as a place for ongoing config.
+
+package_update: true
+
+# Docker's own apt repo rather than Ubuntu's docker.io package: the distro
+# package trails upstream by a long way and doesn't ship the compose plugin,
+# which the deploy will want. $RELEASE and $KEY_FILE are cloud-init's own
+# substitutions and are deliberately left for it to fill in.
+apt:
+  sources:
+    docker.list:
+      source: "deb [arch=amd64 signed-by=$KEY_FILE] https://download.docker.com/linux/ubuntu $RELEASE stable"
+      keyid: 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+
+packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# This VM has 1 GB of RAM. Docker's daemon alone takes a meaningful slice of
+# that, and the OOM killer reaping a container mid-request is a miserable
+# thing to debug. 2 GB of swap costs nothing but disk and turns "container
+# died" into "container got slow".
+swap:
+  filename: /swapfile
+  size: 2G
+  maxsize: 2G
+
+runcmd:
+  - systemctl enable --now docker
+  # So ${admin_username} can run docker without sudo. Needs a re-login (or a
+  # new SSH session) before it takes effect.
+  - usermod -aG docker ${admin_username}
+
+final_message: "cloud-init finished after $UPTIME seconds — docker is installed"

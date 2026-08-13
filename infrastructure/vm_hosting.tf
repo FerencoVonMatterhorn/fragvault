@@ -121,9 +121,15 @@ resource "azurerm_linux_virtual_machine" "hosting" {
     version   = "latest"
   }
 
-  # Deliberately no custom_data / cloud-init app deployment here yet — nginx
-  # config, the Go binary, and the systemd unit get deployed via the
-  # GitHub Actions CI pipeline once the repo is live, not baked into the
-  # image. Keeps this VM cheap to recreate and the deploy path identical to
-  # every later app update.
+  # cloud-init installs Docker on first boot so the VM is ready to run
+  # containers the moment it exists. Only the runtime is baked in — the
+  # application itself still arrives via CI, so recreating this VM stays
+  # cheap and the deploy path is identical for every later update.
+  #
+  # Editing the template replaces the VM. That's intended: it's an image
+  # definition, and drifting it in place would make "recreate the VM" stop
+  # producing the same machine.
+  custom_data = base64encode(templatefile("${path.module}/cloud-init/hosting.yaml.tftpl", {
+    admin_username = var.admin_username
+  }))
 }
