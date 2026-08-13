@@ -10,6 +10,22 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Resolve the backend per request rather than at startup. nginx validates
+    # literal upstream hostnames when it loads the config, so a bare
+    # `proxy_pass http://backend:8080` makes this container refuse to start
+    # whenever the backend isn't running yet:
+    #   [emerg] host not found in upstream "backend"
+    # Behind a variable, resolution is deferred to request time — a missing
+    # backend is then a 502 on /api, and the frontend still serves. It also
+    # means a backend restart on a new IP is picked up without restarting
+    # nginx.
+    #
+    # NGINX_LOCAL_RESOLVERS is exported by the image's own
+    # 15-local-resolvers.envsh, which reads /etc/resolv.conf — so this finds
+    # Docker's embedded DNS without hardcoding 127.0.0.11.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+    set $backend "${BACKEND_UPSTREAM}";
+
     # The SPA payload is text; not compressing it wastes most of the transfer.
     gzip on;
     gzip_vary on;
@@ -27,8 +43,11 @@ server {
     # frontend/src/api.ts fetches /api/* and /auth/* as relative paths with
     # credentials: "include". Same origin is not a preference here — served
     # from anywhere else, the browser never sends the session cookie.
+    # $request_uri is explicit because a variable proxy_pass no longer derives
+    # the forwarded path from the location — without it the prefix and query
+    # string would be dropped.
     location /api/ {
-        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -37,7 +56,7 @@ server {
     }
 
     location /auth/ {
-        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_pass $backend$request_uri;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
