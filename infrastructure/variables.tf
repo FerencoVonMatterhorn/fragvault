@@ -15,9 +15,9 @@ variable "location" {
 }
 
 variable "environment" {
-  description = "Deployment environment tag (e.g. poc, staging, prod)."
+  description = "Deployment environment tag (e.g. dev, staging, prod). Ends up in every resource name and tag."
   type        = string
-  default     = "poc"
+  default     = "prod"
 }
 
 # --- Phase toggles --------------------------------------------------------

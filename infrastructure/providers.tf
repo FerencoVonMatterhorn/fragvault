@@ -24,7 +24,7 @@ terraform {
     resource_group_name  = "rg-fragvault-tfstate"
     storage_account_name = "stfragvaulttfstate"
     container_name       = "tfstate"
-    key                  = "poc.terraform.tfstate"
+    key                  = "fragvault.terraform.tfstate"
     use_azuread_auth     = true
   }
 }
