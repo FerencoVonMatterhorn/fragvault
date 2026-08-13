@@ -1,23 +1,31 @@
 name: Terraform Apply
 
-# Manual for now — Phase 1 infra is small enough that a reviewed, explicit
-# trigger is safer than auto-apply on every merge to main. Revisit once
-# there's a real staging environment to plan against automatically.
+# Manual by design. terraform-plan.yml runs automatically on PRs and on
+# merge to main, so there's always a fresh plan to read before anyone
+# triggers this. Applying stays a deliberate act: Actions tab -> Terraform
+# Apply -> Run workflow.
+#
+# There is no auto_approve input. There used to be one, and it did nothing —
+# the job always applied. The real gates are this manual trigger and the
+# environment's required reviewers.
 on:
   workflow_dispatch:
-    inputs:
-      auto_approve:
-        description: "Apply without manual confirmation (still requires the environment's required reviewers, if configured)"
-        type: boolean
-        default: false
+
+# Shared with terraform-plan.yml: Terraform locks the state blob, so a plan
+# running concurrently with this would fail on the lock. Never cancel in
+# progress — an interrupted apply can leave state and reality out of sync.
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
 
 jobs:
   terraform:
     name: terraform plan/apply
     runs-on: ubuntu-latest
     # Set up a "production" environment in repo Settings → Environments with
-    # required reviewers, so applies need a human approval click regardless
-    # of auto_approve above.
+    # required reviewers to add a human approval click on top of the manual
+    # trigger. Without that environment configured, this manual trigger is
+    # the only gate.
     environment: production
     defaults:
       run:
@@ -37,9 +45,13 @@ jobs:
 
       # Remote state backend is configured in providers.tf and authenticates
       # with the ARM_* service principal above — no storage access key secret.
-      - run: terraform init
+      - run: terraform init -input=false
 
-      - run: terraform plan -out=tfplan
+      # Re-planned here rather than reusing the plan file from
+      # terraform-plan.yml. Plan files embed sensitive attribute values, so
+      # passing one between workflows as an artifact would leak them, and a
+      # stale plan can no longer be applied if state moved underneath it.
+      - run: terraform plan -input=false -out=tfplan
 
       - name: Apply
         run: terraform apply -auto-approve tfplan

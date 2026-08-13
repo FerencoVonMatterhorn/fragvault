@@ -1,0 +1,100 @@
+name: Terraform Plan
+
+# Runs automatically: on PRs touching infra (so breakage is caught before
+# merge) and on merge to main (so there's always a fresh plan of what would
+# be applied). Never applies anything — that stays a manual trigger, see
+# terraform-apply.yml.
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/terraform-plan.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/terraform-plan.yml"
+
+permissions:
+  contents: read
+  pull-requests: write # to post the plan as a PR comment
+
+# Terraform takes a lock on the state blob, so a plan running while another
+# plan or an apply holds it would fail. One at a time, and don't cancel a
+# run midway — an interrupted apply is worse than a queued one.
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: terraform plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
+      TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          # The wrapper rewrites stdout, which mangles the plan text we
+          # capture below.
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+
+      - name: Plan
+        id: plan
+        shell: bash # for pipefail; the default shell doesn't set it
+        run: terraform plan -no-color -input=false -out=tfplan | tee plan.txt
+
+      - name: Format plan for humans
+        id: format
+        if: always() && steps.plan.outcome != 'skipped'
+        shell: bash
+        run: |
+          # The tfplan binary is deliberately not uploaded as an artifact:
+          # plan files embed resource attributes in the clear, including
+          # anything marked sensitive. The apply workflow re-plans instead.
+          rm -f tfplan
+
+          # A GitHub comment caps out at 65536 characters.
+          if [ "$(wc -c < plan.txt)" -gt 60000 ]; then
+            head -c 60000 plan.txt > plan.short
+            printf '\n... truncated — see the job log for the full plan\n' >> plan.short
+            mv plan.short plan.txt
+          fi
+
+          {
+            echo '### Terraform plan'
+            echo
+            echo '<details><summary>Show plan</summary>'
+            echo
+            echo '```terraform'
+            cat plan.txt
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo 'Nothing has been applied. To apply this, run the **Terraform Apply**'
+            echo 'workflow manually from the Actions tab.'
+          } > plan.md
+
+          cat plan.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Gated on the format step, not just on always(): if init fails, plan
+      # is skipped, plan.md never gets written, and this would fail on a
+      # missing file instead of leaving the real error as the visible one.
+      - name: Comment plan on the PR
+        if: always() && github.event_name == 'pull_request' && steps.format.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file plan.md
