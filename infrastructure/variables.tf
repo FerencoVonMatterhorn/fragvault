@@ -66,8 +66,17 @@ variable "admin_username" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key for admin access to the hosting VM."
+  description = "RSA SSH public key for admin access to the hosting VM. Must be RSA — Azure rejects ed25519 for Linux VM provisioning."
   type        = string
+
+  # Caught here rather than by the provider, which fails mid-plan with
+  # "the provided ssh-ed25519 SSH key is not supported" and no hint about
+  # what to do instead. ed25519 is the better algorithm and works fine for
+  # git and plain SSH — Azure's VM provisioning just doesn't accept it.
+  validation {
+    condition     = startswith(var.ssh_public_key, "ssh-rsa ")
+    error_message = "Azure only accepts RSA keys for Linux VM provisioning. Generate one with: ssh-keygen -t rsa -b 4096 -C fragvault -f ~/.ssh/id_rsa_fragvault"
+  }
 }
 
 variable "allowed_ssh_source_ip" {
