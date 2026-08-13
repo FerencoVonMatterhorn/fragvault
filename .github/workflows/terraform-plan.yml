@@ -49,6 +49,12 @@ jobs:
           # capture below.
           terraform_wrapper: false
 
+      # fmt is the one check the old ci.yml terraform-validate job did that
+      # planning doesn't — `terraform plan` validates the config on its way
+      # through, so a separate validate job was just a second pipeline
+      # running on every push.
+      - run: terraform fmt -check -diff
+
       - run: terraform init -input=false
 
       - name: Plan
