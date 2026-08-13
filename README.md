@@ -14,6 +14,35 @@ CS2 highlight discovery and creation. Phase 1 (this repo's current state): sign 
   <img src="assets/architecture.svg" alt="Deployment topology: the browser reaches Caddy over HTTPS; Caddy routes /api and /auth to the Go backend and everything else to the nginx frontend, both containers on one Azure VM; the backend calls the Steam Web API; images come from ghcr.io" width="980">
 </p>
 
+## Roadmap
+
+**Phase 1 — Match discovery** ✅ *live*
+Sign in with Steam, onboard once, and have your recent matches discovered by walking sharecodes forward.
+
+**Phase 2 — Analyse demos**
+Fetch the `.dem` for a discovered match and parse it for highlight-worthy moments: multi-kills, clutches, opening duels, defuses. A sharecode already decodes to the match ID, reservation ID and TV port (`backend/internal/matches/sharecode.go`), which is what locating the replay needs. This phase is pure backend — no rendering yet, just "here is a list of timestamps worth watching".
+
+**Phase 3 — Create highlights**
+Turn those timestamps into actual video. A GPU VM runs CS2 against the demo and records the clip; a Function App orchestrates the job so nothing expensive stays running between renders; finished clips land in blob storage. All three already exist in Terraform behind `enable_gpu_render_vm`, `enable_function_app` and `enable_blob_storage`, disabled so they can't bill before the phase starts. The GPU VM is by far the most expensive resource in this repo — it should be created per job and destroyed after.
+
+**Phase 4 — Share with friends**
+Short links to rendered clips, served from blob storage through time-limited SAS URLs rather than a public container. Wants a clip page with an OpenGraph preview so a link dropped into Discord unfurls properly.
+
+**Phase 5 — FACEIT connectivity**
+Pull matches and demos from FACEIT alongside Valve matchmaking. FACEIT exposes both through its own API and hosts demos directly, so it sidesteps the game-auth-code onboarding entirely — and for a lot of players it's where the matches worth clipping actually happen.
+
+### Also on the list
+
+Smaller things, roughly in the order they'll start to hurt:
+
+- **Encrypt the Valve auth codes at rest.** They currently sit in plaintext in a JSON file on the VM. Fine for a single user; not fine for the first stranger who trusts the site with one.
+- **Move off the single JSON file.** Every write rewrites the whole thing under a mutex — a deliberate POC tradeoff (`backend/internal/matches/store.go`) that stops being reasonable somewhere in the tens of users.
+- **Show real match metadata** — map, score, date. The list currently shows a sharecode and the time it was *discovered*, which isn't when it was played.
+- **A logout button.** `POST /auth/logout` already works; nothing in the UI calls it.
+- **Distinguish a rejected auth code from "no new matches".** The poller treats a 404 as "nothing newer", so bad credentials look exactly like an empty result.
+- **Poll in the background** instead of on every `/api/matches` request, and stay clear of the Steam API rate limit as users are added.
+- **Automate deployment.** It's a manual `docker compose pull && up -d` on the VM today.
+
 ## Layout
 
 - `frontend/` — React + TypeScript + Vite POC UI
