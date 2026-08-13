@@ -7,11 +7,13 @@ variable "project_name" {
 variable "location" {
   description = "Azure region for all resources."
   type        = string
-  # northeurope (Ireland), not westeurope: it's the cheapest EU region for the
-  # SKUs here, and westeurope is currently capacity-restricted — it rejects
-  # new resources from new subscriptions with a misleading
-  # "(RequestDisallowedByAzure) region is currently not accepting new customers".
-  default = "northeurope"
+  # swedencentral, chosen by what this subscription can actually deploy.
+  # westeurope refuses new storage accounts ("region is currently not
+  # accepting new customers") and northeurope offers no burstable VM SKU to
+  # this subscription at all — only confidential-compute and GPU families,
+  # at 6-10x the price. swedencentral has the full Bsv2/Basv2 range
+  # unrestricted and prices ~10% under westeurope.
+  default = "swedencentral"
 }
 
 variable "environment" {
@@ -56,7 +58,14 @@ variable "enable_gpu_render_vm" {
 variable "hosting_vm_size" {
   description = "VM size for the small Linux box hosting frontend+backend."
   type        = string
-  default     = "Standard_B1s"
+  # Not Standard_B1s: the v1 B-series is unavailable to this subscription in
+  # every mainstream region (SkuNotAvailable / NotAvailableForSubscription,
+  # and it is not a quota problem — the BS family quota is 4 vCPUs, unused).
+  # The v2 burstable family has no such restriction. B2ats_v2 is AMD, 2 vCPU
+  # and 1 GB, and at ~EUR 0.0085/hr it is cheaper than a B1s was while giving
+  # twice the cores. The ARM equivalent (B2pts_v2) saves another ~EUR 1/month
+  # but needs an arm64 image and an arm64 Go build, which isn't worth it yet.
+  default = "Standard_B2ats_v2"
 }
 
 variable "admin_username" {
