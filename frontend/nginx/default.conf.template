@@ -22,7 +22,9 @@ server {
     #
     # NGINX_LOCAL_RESOLVERS is exported by the image's own
     # 15-local-resolvers.envsh, which reads /etc/resolv.conf — so this finds
-    # Docker's embedded DNS without hardcoding 127.0.0.11.
+    # Docker's embedded DNS without hardcoding 127.0.0.11. That script only
+    # does anything when NGINX_ENTRYPOINT_LOCAL_RESOLVERS is set, which the
+    # Dockerfile does; drop that ENV and this line breaks the container.
     resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
     set $backend "${BACKEND_UPSTREAM}";
 

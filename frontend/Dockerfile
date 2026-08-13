@@ -30,6 +30,14 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # strip the /api prefix instead.
 ENV BACKEND_UPSTREAM=http://backend:8080
 
+# Opt in to the image's local-resolver support. 15-local-resolvers.envsh is
+# always sourced but returns early unless this is set:
+#   [ "${NGINX_ENTRYPOINT_LOCAL_RESOLVERS:-}" ] || return 0
+# Without it, NGINX_LOCAL_RESOLVERS never reaches the environment, envsubst
+# leaves the placeholder verbatim in the config, and nginx dies trying to
+# resolve a literal "${NGINX_LOCAL_RESOLVERS}" as a hostname.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
