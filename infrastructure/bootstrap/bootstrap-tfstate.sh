@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Creates the Azure Storage account that holds Terraform remote state.
+# Creates the Azure Storage account that holds Terraform remote state, and
+# grants CI the two roles it needs: data-plane access to the state blob, and
+# a control-plane role on the subscription to create infrastructure with.
 #
 # Why a script and not Terraform: this is the chicken-and-egg resource. A
 # storage account managed by the same state it stores is a footgun — a
@@ -39,6 +41,13 @@ CI_CLIENT_ID="${CI_CLIENT_ID:-}"
 # The signed-in user also needs data-plane access to run Terraform locally —
 # subscription Owner does not imply it. Set to false to skip.
 GRANT_CALLER="${GRANT_CALLER:-true}"
+# CI also needs control-plane rights to create the app infrastructure itself.
+# Subscription scope rather than resource-group scope because Terraform
+# creates the resource group too, so there's nothing narrower to scope to
+# until it exists. Set to false if you'd rather grant this by hand — see the
+# note in ../../docs/architecture.md about tightening it.
+GRANT_CI_SUBSCRIPTION="${GRANT_CI_SUBSCRIPTION:-true}"
+CI_SUBSCRIPTION_ROLE="${CI_SUBSCRIPTION_ROLE:-Contributor}"
 
 # Storage account names are globally unique across all of Azure, lowercase
 # alphanumeric, 3-24 chars. If the default is taken, re-run with SA_NAME set
@@ -230,10 +239,26 @@ if [ -n "$CI_CLIENT_ID" ]; then
   # this role assignment is what actually lets CI read/write the state blob.
   SP_OBJECT_ID="$(az ad sp show --id "$CI_CLIENT_ID" --query id --output tsv)"
   ensure_role "$SP_OBJECT_ID" ServicePrincipal "Storage Blob Data Contributor" "$SA_ID"
+
+  if [ "$GRANT_CI_SUBSCRIPTION" = "true" ]; then
+    echo "==> Granting $CI_SUBSCRIPTION_ROLE on the subscription to CI"
+    # Data-plane access to the state blob is not enough — CI also has to
+    # create the resource group, VM, network, and everything else. That is a
+    # control-plane role, and it has to sit at subscription scope because
+    # Terraform creates the resource group itself; there is no narrower
+    # existing scope to attach it to.
+    SUBSCRIPTION_ID="$(az account show --query id --output tsv)"
+    ensure_role "$SP_OBJECT_ID" ServicePrincipal "$CI_SUBSCRIPTION_ROLE" \
+      "/subscriptions/$SUBSCRIPTION_ID"
+  else
+    echo "==> GRANT_CI_SUBSCRIPTION=false — skipping the subscription role."
+    echo "    CI can read/write state but cannot create infrastructure."
+  fi
 else
-  echo "==> CI_CLIENT_ID not set — skipping the CI role assignment."
+  echo "==> CI_CLIENT_ID not set — skipping the CI role assignments."
   echo "    CI cannot read state until its service principal gets"
-  echo "    'Storage Blob Data Contributor' on $SA_NAME."
+  echo "    'Storage Blob Data Contributor' on $SA_NAME, nor create"
+  echo "    infrastructure without a control-plane role on the subscription."
 fi
 
 echo

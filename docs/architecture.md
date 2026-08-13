@@ -44,6 +44,12 @@ Configuration choices there are all cost-driven — Standard LRS (no geo-replica
 
 Auth is Entra ID (`use_azuread_auth`), not a storage access key, so the only credentials CI holds are the service principal's. Shared key access is disabled on the account; anyone running Terraform locally needs the "Storage Blob Data Contributor" role on it.
 
+## CI permissions
+
+The bootstrap script grants the CI service principal two distinct things, and the distinction matters because one does not imply the other: "Storage Blob Data Contributor" scoped to the state account (data plane — reading and writing the state blob), and "Contributor" scoped to the whole subscription (control plane — creating the resource group, VM, network, and the rest).
+
+Subscription scope is broader than ideal. It's used because Terraform creates the resource group itself, so at bootstrap time there is no narrower scope to attach the role to. To tighten it: create the app resource group by hand, add it to the Terraform config as a data source instead of a resource, and scope Contributor to that group. That trades a manual step for a meaningfully smaller blast radius if the CI credentials ever leak — worth doing before this holds anything real.
+
 ## A note on how this was built
 
 This codebase was scaffolded inside a network-sandboxed cloud AI environment that, at various points, could not reach npm, PyPI, Azure's management API, or GitHub's API depending on evolving account/org network settings. That's why: the backend avoids third-party dependencies (buildable/testable even under those restrictions), the frontend and Terraform were validated where possible (`terraform validate` against the real provider; the frontend could not run `npm install` in that environment and should be verified in CI or locally before being trusted), and infra apply + repo push route through GitHub Actions / a manually-created repo rather than being run directly by the assistant. Worth knowing if something here looks like it was designed around an odd constraint — it was.
