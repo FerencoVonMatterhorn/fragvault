@@ -1,0 +1,7 @@
+# Keeps the build context small and stops a local install from leaking into
+# the image — node_modules built on Windows would be wrong for alpine anyway.
+node_modules
+dist
+.vite
+Dockerfile
+.dockerignore

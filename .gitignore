@@ -6,6 +6,8 @@ backend/*.tmp
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+# `tsc -b` incremental build state — machine-local, regenerated every build.
+frontend/*.tsbuildinfo
 
 # Terraform
 infrastructure/.terraform/

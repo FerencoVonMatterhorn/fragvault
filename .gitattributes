@@ -10,3 +10,8 @@
 # file and configs don't churn line endings between the two.
 *.tf text eol=lf
 *.hcl text eol=lf
+
+# Container build inputs are consumed by Linux tooling only.
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.template text eol=lf
