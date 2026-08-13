@@ -1,7 +1,10 @@
-# Front door for the whole app: serves the built SPA and reverse-proxies the
-# API to the backend container. Rendered through envsubst at container start
-# (see the Dockerfile) — ${BACKEND_UPSTREAM} is the only substitution; the
-# $-variables below are nginx's own and survive untouched.
+# Serves the built SPA and nothing else. Routing /api and /auth to the
+# backend is Caddy's job (deploy/Caddyfile) — this container never sees those
+# requests. It used to proxy them itself, which meant two places defining the
+# same routing, free to drift apart.
+#
+# Still a template rather than a plain .conf so the image keeps working with
+# the stock entrypoint; there is simply nothing to substitute right now.
 
 server {
     listen 80;
@@ -9,24 +12,6 @@ server {
 
     root /usr/share/nginx/html;
     index index.html;
-
-    # Resolve the backend per request rather than at startup. nginx validates
-    # literal upstream hostnames when it loads the config, so a bare
-    # `proxy_pass http://backend:8080` makes this container refuse to start
-    # whenever the backend isn't running yet:
-    #   [emerg] host not found in upstream "backend"
-    # Behind a variable, resolution is deferred to request time — a missing
-    # backend is then a 502 on /api, and the frontend still serves. It also
-    # means a backend restart on a new IP is picked up without restarting
-    # nginx.
-    #
-    # NGINX_LOCAL_RESOLVERS is exported by the image's own
-    # 15-local-resolvers.envsh, which reads /etc/resolv.conf — so this finds
-    # Docker's embedded DNS without hardcoding 127.0.0.11. That script only
-    # does anything when NGINX_ENTRYPOINT_LOCAL_RESOLVERS is set, which the
-    # Dockerfile does; drop that ENV and this line breaks the container.
-    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
-    set $backend "${BACKEND_UPSTREAM}";
 
     # The SPA payload is text; not compressing it wastes most of the transfer.
     gzip on;
@@ -40,30 +25,6 @@ server {
         access_log off;
         add_header Content-Type text/plain;
         return 200 "ok\n";
-    }
-
-    # frontend/src/api.ts fetches /api/* and /auth/* as relative paths with
-    # credentials: "include". Same origin is not a preference here — served
-    # from anywhere else, the browser never sends the session cookie.
-    # $request_uri is explicit because a variable proxy_pass no longer derives
-    # the forwarded path from the location — without it the prefix and query
-    # string would be dropped.
-    location /api/ {
-        proxy_pass $backend$request_uri;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /auth/ {
-        proxy_pass $backend$request_uri;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # Vite fingerprints these filenames, so a given name's content can never

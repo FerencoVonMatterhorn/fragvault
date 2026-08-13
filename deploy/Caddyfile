@@ -1,0 +1,36 @@
+# Front door for fragvault.pro: terminates TLS and routes everything.
+#
+# Certificates are obtained from Let's Encrypt automatically, which is why
+# port 80 must stay reachable — it carries the ACME challenge as well as the
+# redirect to HTTPS. Both are handled without configuration.
+#
+# To get expiry warnings, add a global block above the site blocks:
+#   { email you@example.com }
+# Left out here because this repository is public.
+
+fragvault.pro {
+	encode zstd gzip
+
+	# The API must be same-origin with the app: the frontend sends cookies
+	# with credentials: "include" (frontend/src/api.ts), and Steam OpenID
+	# redirects back to BASE_URL. Serving these from another host breaks the
+	# session.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /auth/* {
+		reverse_proxy backend:8080
+	}
+
+	# Everything else is the SPA. Caddy resolves upstreams per request, so a
+	# backend that is down or restarting produces a 502 here instead of
+	# stopping the proxy from starting at all.
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+www.fragvault.pro {
+	redir https://fragvault.pro{uri} permanent
+}

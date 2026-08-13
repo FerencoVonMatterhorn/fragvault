@@ -19,24 +19,11 @@ RUN npm run build
 FROM nginx:1.27-alpine AS runtime
 
 # The stock nginx entrypoint renders every *.template in this directory
-# through envsubst at container start, so the backend address is a run-time
-# knob instead of being baked into the image. It only substitutes variables
-# that exist in the environment, so nginx's own $uri / $host are left alone.
+# through envsubst at container start. Nothing needs substituting now that
+# Caddy owns routing (deploy/Caddyfile), but it stays a template so adding a
+# run-time knob later doesn't mean relocating the file.
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# Overridable at `docker run`. No trailing slash: with a bare host nginx
-# forwards the original URI untouched, but adding a path (even "/") makes it
-# strip the /api prefix instead.
-ENV BACKEND_UPSTREAM=http://backend:8080
-
-# Opt in to the image's local-resolver support. 15-local-resolvers.envsh is
-# always sourced but returns early unless this is set:
-#   [ "${NGINX_ENTRYPOINT_LOCAL_RESOLVERS:-}" ] || return 0
-# Without it, NGINX_LOCAL_RESOLVERS never reaches the environment, envsubst
-# leaves the placeholder verbatim in the config, and nginx dies trying to
-# resolve a literal "${NGINX_LOCAL_RESOLVERS}" as a hostname.
-ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 
 EXPOSE 80
 

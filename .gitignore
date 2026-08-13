@@ -18,6 +18,11 @@ infrastructure/*.tfvars
 !infrastructure/*.tfvars.example
 infrastructure/.terraform.lock.hcl.backup
 
+# Deployment
+# Live credentials (Steam API key, session secret). Only ever created on the
+# VM; deploy/.env.example is the committed template.
+deploy/.env
+
 # Editors / OS
 .DS_Store
 *.swp

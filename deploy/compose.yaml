@@ -1,0 +1,50 @@
+# The whole application on the hosting VM. Deployed by hand for now:
+#   docker compose pull && docker compose up -d
+#
+# Copy this file, Caddyfile, and a .env you create yourself into
+# /opt/fragvault on the VM. See .env.example for what .env must contain.
+
+name: fragvault
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # The only service published to the internet. Port 80 is not optional:
+    # Caddy needs it for the ACME challenge that issues the certificate, and
+    # for redirecting plain HTTP to HTTPS.
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+
+  frontend:
+    image: ghcr.io/ferencovonmatterhorn/fragvault-frontend:latest
+    restart: unless-stopped
+    # No ports on purpose: reachable only from Caddy over the compose
+    # network. Publishing it would expose an unencrypted second way in.
+
+  backend:
+    image: ghcr.io/ferencovonmatterhorn/fragvault-backend:latest
+    restart: unless-stopped
+    # STEAM_WEB_API_KEY, SESSION_SECRET and BASE_URL. Never committed.
+    env_file: .env
+    volumes:
+      - fragvault_data:/data
+
+volumes:
+  # Issued certificates and the ACME account key. Losing this means Caddy
+  # re-requests certificates on the next start, and Let's Encrypt's rate
+  # limits are low enough to lock you out for a week if that repeats.
+  caddy_data:
+  caddy_config:
+  # Onboarded users, their Valve auth codes, and discovered matches. This is
+  # the only stateful thing in the deployment — back it up before rebuilding
+  # the VM.
+  fragvault_data:

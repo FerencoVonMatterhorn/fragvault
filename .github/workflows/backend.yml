@@ -14,8 +14,12 @@ on:
       - "backend/**"
       - ".github/workflows/backend.yml"
 
+permissions:
+  contents: read
+  packages: write # to push the image to ghcr.io
+
 jobs:
-  backend:
+  test:
     name: Backend (Go)
     runs-on: ubuntu-latest
     defaults:
@@ -30,3 +34,39 @@ jobs:
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./... -v
+
+  image:
+    name: Build image (pushed on main)
+    # Only ship what passes. The Dockerfile compiles the binary again, but a
+    # failing test should stop an image from reaching the registry at all.
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image name and tag
+        run: |
+          # ghcr rejects uppercase in the registry path, and this owner has
+          # capitals in it.
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE=ghcr.io/$owner/fragvault-backend" >> "$GITHUB_ENV"
+          # Immutable tag alongside :latest, so a bad deploy can be rolled
+          # back to an exact commit.
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build image
+        working-directory: backend
+        run: docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+
+      # Pull requests build but never publish: a PR from a fork must not be
+      # able to put an image under this repo's name.
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: |
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+          echo "Pushed $IMAGE:$TAG and $IMAGE:latest" >> "$GITHUB_STEP_SUMMARY"
