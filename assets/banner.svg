@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="FragVault — CS2 highlight discovery and creation">
+  <title>FragVault — CS2 highlight discovery and creation</title>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="55%" stop-color="#111a2e"/>
+      <stop offset="100%" stop-color="#0d1526"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff8c42"/>
+      <stop offset="100%" stop-color="#ffb703"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ff8c42" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#ff8c42" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .f { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .m { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="320" rx="16" fill="url(#bg)"/>
+  <circle cx="176" cy="160" r="190" fill="url(#glow)"/>
+
+  <!-- Crosshair: the one visual nod to CS2, drawn rather than decorated -->
+  <g stroke="url(#accent)" stroke-width="6" stroke-linecap="round" fill="none">
+    <circle cx="176" cy="160" r="58" stroke-opacity="0.55"/>
+    <path d="M176 74 v34 M176 212 v34 M90 160 h34 M228 160 h34"/>
+  </g>
+  <circle cx="176" cy="160" r="7" fill="#ff8c42"/>
+
+  <g class="f">
+    <text x="300" y="150" font-size="76" font-weight="700" fill="#f8fafc" letter-spacing="-1.5">FragVault</text>
+    <text x="304" y="196" font-size="25" fill="#94a3b8">CS2 highlight discovery &amp; creation</text>
+
+    <!-- Live badge -->
+    <g transform="translate(304 226)">
+      <rect width="286" height="42" rx="21" fill="#10241a" stroke="#2f855a"/>
+      <circle cx="26" cy="21" r="6" fill="#34d399"/>
+      <text x="44" y="27" font-size="17" fill="#a7f3d0" class="m">live · fragvault.pro</text>
+    </g>
+
+    <!-- Stack chips -->
+    <g font-size="15" fill="#8fa3bf" class="m">
+      <g transform="translate(614 226)">
+        <rect width="74" height="42" rx="10" fill="#141f36" stroke="#25324d"/>
+        <text x="37" y="27" text-anchor="middle">Go</text>
+      </g>
+      <g transform="translate(698 226)">
+        <rect width="94" height="42" rx="10" fill="#141f36" stroke="#25324d"/>
+        <text x="47" y="27" text-anchor="middle">React</text>
+      </g>
+      <g transform="translate(802 226)">
+        <rect width="106" height="42" rx="10" fill="#141f36" stroke="#25324d"/>
+        <text x="53" y="27" text-anchor="middle">Docker</text>
+      </g>
+      <g transform="translate(918 226)">
+        <rect width="122" height="42" rx="10" fill="#141f36" stroke="#25324d"/>
+        <text x="61" y="27" text-anchor="middle">Terraform</text>
+      </g>
+      <g transform="translate(1050 226)">
+        <rect width="94" height="42" rx="10" fill="#141f36" stroke="#25324d"/>
+        <text x="47" y="27" text-anchor="middle">Azure</text>
+      </g>
+    </g>
+  </g>
+
+  <rect x="0" y="308" width="1200" height="12" rx="6" fill="url(#accent)" opacity="0.9"/>
+</svg>

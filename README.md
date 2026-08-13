@@ -1,10 +1,18 @@
-# FragVault
+<p align="center">
+  <img src="assets/banner.svg" alt="FragVault — CS2 highlight discovery &amp; creation" width="900">
+</p>
 
 CS2 highlight discovery and creation. Phase 1 (this repo's current state): sign in with Steam, discover recent matches, list them.
 
 **The Phase 1 POC is live at [fragvault.pro](https://fragvault.pro)** — Steam login, onboarding, and match discovery all work end to end. It runs as containers on a single small Azure VM behind Caddy, which terminates TLS.
 
 > Onboarding gotcha: the starting sharecode you paste is **exclusive**. Discovery walks *forward* from it, so pasting your most recent match's code finds nothing. Use an older one.
+
+## How it runs
+
+<p align="center">
+  <img src="assets/architecture.svg" alt="Deployment topology: the browser reaches Caddy over HTTPS; Caddy routes /api and /auth to the Go backend and everything else to the nginx frontend, both containers on one Azure VM; the backend calls the Steam Web API; images come from ghcr.io" width="980">
+</p>
 
 ## Layout
 
