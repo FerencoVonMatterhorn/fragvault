@@ -1,0 +1,66 @@
+# Front door for the whole app: serves the built SPA and reverse-proxies the
+# API to the backend container. Rendered through envsubst at container start
+# (see the Dockerfile) — ${BACKEND_UPSTREAM} is the only substitution; the
+# $-variables below are nginx's own and survive untouched.
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # The SPA payload is text; not compressing it wastes most of the transfer.
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # Above the SPA fallback on purpose: `location /` would otherwise answer
+    # this with index.html and the healthcheck would pass on a broken app.
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    # frontend/src/api.ts fetches /api/* and /auth/* as relative paths with
+    # credentials: "include". Same origin is not a preference here — served
+    # from anywhere else, the browser never sends the session cookie.
+    location /api/ {
+        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /auth/ {
+        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Vite fingerprints these filenames, so a given name's content can never
+    # change — cache them hard.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # The entry point must never be cached, or browsers keep loading the old
+    # build's asset references after a deploy.
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    # Client-side routing: any unknown path is a route, not a missing file.
+    # Without this a refresh on a deep link 404s.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
