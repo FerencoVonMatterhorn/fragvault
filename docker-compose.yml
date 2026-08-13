@@ -1,0 +1,71 @@
+# Runs the whole Phase 1 stack locally the same way the VM will: nginx in
+# front serving the built frontend and proxying /api + /auth to the Go
+# backend, which is never published to the host directly.
+#
+#   cp .env.example .env   # then fill in your Steam key and a session secret
+#   docker compose up --build
+#
+# Then open http://localhost:8080.
+#
+# No `version:` key — Compose v2 ignores it and warns about it.
+
+name: fragvault
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ghcr.io/ferencovonmatterhorn/fragvault-backend:local
+    restart: unless-stopped
+    environment:
+      # BASE_URL has to be the address the *browser* uses, not the container's,
+      # because Steam redirects the user back to it after login. With the port
+      # mapping below that's the frontend's published port.
+      BASE_URL: ${BASE_URL:-http://localhost:8080}
+      # `:?` so compose stops with a readable message instead of the backend
+      # exiting on log.Fatalf two seconds after it starts.
+      STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:?set STEAM_WEB_API_KEY in .env — get one at https://steamcommunity.com/dev/apikey}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env — any random 32+ character string}
+      # Session cookies are Secure by default, which a browser won't return
+      # over plain http. Local compose is http, so this defaults on here and
+      # must be false wherever this runs behind TLS.
+      DEV_INSECURE_COOKIE: ${DEV_INSECURE_COOKIE:-true}
+    volumes:
+      - backend-data:/data
+    # The image writes only to /data (see the Dockerfile), so the rest of the
+    # filesystem can be sealed.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  frontend:
+    build:
+      context: ./frontend
+    image: ghcr.io/ferencovonmatterhorn/fragvault-frontend:local
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    environment:
+      # No trailing slash — see the comment on proxy_pass in
+      # frontend/default.conf.template.
+      BACKEND_ORIGIN: http://backend:8080
+    depends_on:
+      backend:
+        # Not just `depends_on: [backend]`. nginx resolves the backend
+        # hostname when it parses its config at startup, so if it comes up
+        # first it exits immediately with "host not found in upstream".
+        condition: service_healthy
+    read_only: true
+    # nginx-unprivileged keeps its pid file and its request/proxy temp buffers
+    # under /tmp, so a read-only root needs this one writable mount.
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  backend-data:

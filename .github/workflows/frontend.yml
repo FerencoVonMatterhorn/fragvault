@@ -12,6 +12,12 @@ on:
       - "frontend/**"
       - ".github/workflows/frontend.yml"
 
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}-frontend
+
 jobs:
   frontend:
     name: Frontend (React/Vite)
@@ -26,5 +32,47 @@ jobs:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-      - run: npm install
+      # ci, not install: it installs exactly what the lockfile pins and fails
+      # if the lockfile and package.json have drifted, which is the whole
+      # point of having one.
+      - run: npm ci
       - run: npm run build
+
+  image:
+    name: Image
+    needs: frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # to push to GHCR — the only write this workflow does
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

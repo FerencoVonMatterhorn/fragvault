@@ -6,6 +6,10 @@ backend/*.tmp
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+
+# Docker / compose — .env holds the Steam API key and session secret
+.env
 
 # Terraform
 infrastructure/.terraform/

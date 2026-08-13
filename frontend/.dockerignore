@@ -1,0 +1,12 @@
+# node_modules above all: copying a host-built tree into the image would both
+# blow up the build context and risk shipping platform-specific binaries the
+# image was never meant to have. `npm ci` installs a clean set inside instead.
+node_modules/
+
+# Built by the image itself.
+dist/
+.vite/
+tsconfig.tsbuildinfo
+
+Dockerfile
+.dockerignore

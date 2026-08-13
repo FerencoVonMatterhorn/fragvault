@@ -4,8 +4,9 @@ CS2 highlight discovery and creation. Phase 1 (this repo's current state): sign 
 
 ## Layout
 
-- `frontend/` — React + TypeScript + Vite POC UI
+- `frontend/` — React + TypeScript + Vite POC UI, packaged behind nginx
 - `backend/` — Go HTTP API (Steam auth + match polling)
+- `docker-compose.yml` — runs both containers together; see "Running with Docker"
 - `function-app/` — placeholder for the later demo-rendering phase
 - `infrastructure/` — Terraform for all infra (only the hosting VM is enabled by default; the rest sits behind `enable_*` variables so nothing bills before its phase starts)
 
@@ -31,6 +32,33 @@ npm run dev
 ```
 
 The Vite dev server proxies `/api` and `/auth` to `http://localhost:8080` (see `vite.config.ts`), so both need to be running together.
+
+## Running with Docker
+
+Both services build to their own image (`backend/Dockerfile`, `frontend/Dockerfile`), and compose runs them the way the VM will: nginx in front serving the built frontend and proxying `/api` + `/auth` to the Go backend, which is never published to the host.
+
+```sh
+cp .env.example .env   # then fill in your Steam key and a session secret
+docker compose up --build
+```
+
+Then open <http://localhost:8080>.
+
+A few things worth knowing:
+
+- **`BASE_URL` is the address the browser uses**, not the container's. Steam redirects the user back to it after login, so it has to match what you typed, port included.
+- **Both containers run as non-root on a read-only root filesystem**, with all capabilities dropped. The backend gets a writable volume at `/data` for its JSON store; nginx gets a tmpfs at `/tmp` for its pid file and buffers. Nothing else is writable.
+- **nginx listens on 8080, not 80** — a non-root process can't bind below 1024.
+- **`BACKEND_ORIGIN` must have no trailing slash.** It goes into `proxy_pass` in a regex location, where a trailing slash would count as a URI part and strip the matched prefix.
+
+CI builds both images on every push and pull request, and pushes them to GHCR on `main`:
+
+```
+ghcr.io/ferencovonmatterhorn/fragvault-backend:latest
+ghcr.io/ferencovonmatterhorn/fragvault-frontend:latest
+```
+
+Both are also tagged with the full commit sha, which is what a deployment should pin to — `latest` only ever tracks `main` and is there for pulling by hand. Packages are private by default; make them public in the repo's package settings, or `docker login ghcr.io` before pulling.
 
 ## Deploying
 

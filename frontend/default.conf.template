@@ -1,0 +1,107 @@
+# Rendered to /etc/nginx/conf.d/default.conf on container start, with
+# ${BACKEND_ORIGIN} substituted by the base image's entrypoint.
+#
+# This is the deployed equivalent of the dev proxy in vite.config.ts: static
+# files out of the Vite build, and everything under /api and /auth handed to
+# the Go backend. Keep the two in step — a path that works in `npm run dev`
+# and 404s in a container is a miserable half hour.
+
+# conf.d/*.conf is included in the http context, so a map is legal here.
+# Cache-Control is decided here rather than per location for the reason
+# explained on the add_header block below.
+map $uri $fragvault_cache_control {
+    # index.html, and every SPA fallback that serves it, must never be cached:
+    # a stale one keeps pointing at fingerprinted assets that a later deploy
+    # has already removed.
+    default    "no-store";
+    # Vite fingerprints everything under /assets/, so one of those filenames
+    # only ever describes one exact build and can be kept indefinitely.
+    ~^/assets/ "public, max-age=31536000, immutable";
+}
+
+server {
+    # 8080 rather than 80 because the server runs as a non-root user, and
+    # those can't bind ports below 1024.
+    #
+    # No `listen [::]:8080` to go with it. Published ports are proxied by
+    # Docker, so traffic reaches this container over IPv4 whichever stack the
+    # client used, and the container gains nothing from the second socket. It
+    # can lose something, though: where the container has no IPv6 at all,
+    # nginx aborts at startup with "Address family not supported by protocol".
+    listen      8080;
+    server_name _;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    # The JS bundle is the entire application, so it's worth compressing.
+    # gzip_types deliberately omits text/html, which nginx always includes.
+    gzip            on;
+    gzip_vary       on;
+    gzip_min_length 1024;
+    gzip_types      text/css text/plain application/javascript application/json image/svg+xml;
+
+    # Every header the site sets lives here, and no location below declares an
+    # add_header of its own. That is deliberate, not tidiness: nginx inherits
+    # add_header from an outer level only while the inner level declares none
+    # itself, so adding a single add_header to one location would silently
+    # drop all of these for that location. Caching varies per path, which is
+    # what the map above is for — it keeps the variation in a variable instead
+    # of in a second add_header.
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options        DENY    always;
+    add_header Referrer-Policy        strict-origin-when-cross-origin always;
+    add_header Cache-Control          $fragvault_cache_control always;
+
+    # This container's own liveness, answered without touching the backend —
+    # a proxied health endpoint would report the backend's health, not nginx's,
+    # and compose already checks the backend separately.
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # One regex block rather than two prefix blocks so the proxy headers only
+    # exist once. proxy_pass carries no URI part — required inside a regex
+    # location, and it means the request path is forwarded unchanged, so
+    # /api/matches arrives at the backend as /api/matches.
+    #
+    # BACKEND_ORIGIN must therefore have no trailing slash: a slash would
+    # count as a URI part, and nginx would strip the matched prefix.
+    #
+    # Because the substitution happens before nginx parses this file, the
+    # hostname is resolved once at startup — nginx will refuse to start if the
+    # backend isn't resolvable yet, which is why compose gates this container
+    # on the backend's healthcheck.
+    location ~ ^/(api|auth)(/|$) {
+        proxy_pass ${BACKEND_ORIGIN};
+
+        # Go's http.Error sets this itself, so every error response from the
+        # backend would otherwise carry it twice — once from Go and once from
+        # the add_header above. Dropping the upstream copy leaves exactly one.
+        # (proxy_hide_header is a different directive class than add_header,
+        # so this doesn't disturb the header inheritance described above.)
+        proxy_hide_header X-Content-Type-Options;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+    }
+
+    # =404 rather than falling through to the SPA: a missing asset should look
+    # missing, not return an HTML page with a 200 that breaks confusingly one
+    # layer further up.
+    location /assets/ {
+        try_files $uri =404;
+    }
+
+    # SPA fallback — deep links have to reach index.html rather than 404,
+    # since routing happens client-side.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

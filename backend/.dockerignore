@@ -1,0 +1,10 @@
+# The build stage only needs go.mod and the Go sources. Everything below
+# either doesn't belong in an image or would needlessly bust the build cache.
+
+Dockerfile
+.dockerignore
+
+# Local runtime state — the container keeps its own under /data.
+fragvault-data.json
+fragvault-data.json.tmp
+*.tmp

@@ -14,6 +14,16 @@ on:
       - "backend/**"
       - ".github/workflows/backend.yml"
 
+# Least privilege at the top, widened per job only where a job actually needs
+# it — see the image job, which is the only one that writes anything.
+permissions:
+  contents: read
+
+env:
+  # metadata-action lowercases this: github.repository is mixed-case here and
+  # GHCR only accepts lowercase names.
+  IMAGE_NAME: ghcr.io/${{ github.repository }}-backend
+
 jobs:
   backend:
     name: Backend (Go)
@@ -30,3 +40,50 @@ jobs:
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./... -v
+
+  image:
+    name: Image
+    # Gated on the checks above: an image that doesn't compile or fails its
+    # tests has no business being tagged, let alone pushed.
+    needs: backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # to push to GHCR — the only write this workflow does
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Skipped on pull requests: a fork PR gets a read-only GITHUB_TOKEN, so
+      # this would fail on exactly the runs that never push anyway.
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          # The commit sha is the tag deployments should pin to; :latest is a
+          # convenience for pulling by hand and only ever tracks main.
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          # Pull requests build but don't publish — the point on a PR is to
+          # find out that the Dockerfile broke, not to produce an artifact.
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
