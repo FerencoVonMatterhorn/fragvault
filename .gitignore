@@ -1,0 +1,23 @@
+# Go
+backend/fragvault-data.json
+backend/*.tmp
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfplan
+infra/*.tfvars
+!infra/*.tfvars.example
+infra/.terraform.lock.hcl.backup
+
+# Editors / OS
+.DS_Store
+*.swp
+.vscode/
+.idea/

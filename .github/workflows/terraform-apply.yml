@@ -1,0 +1,46 @@
+name: Terraform Apply
+
+# Manual for now — Phase 1 infra is small enough that a reviewed, explicit
+# trigger is safer than auto-apply on every merge to main. Revisit once
+# there's a real staging environment to plan against automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      auto_approve:
+        description: "Apply without manual confirmation (still requires the environment's required reviewers, if configured)"
+        type: boolean
+        default: false
+
+jobs:
+  terraform:
+    name: terraform plan/apply
+    runs-on: ubuntu-latest
+    # Set up a "production" environment in repo Settings → Environments with
+    # required reviewers, so applies need a human approval click regardless
+    # of auto_approve above.
+    environment: production
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
+      TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - run: terraform init
+        # Uncomment once a remote state backend is configured in providers.tf:
+        # env:
+        #   ARM_ACCESS_KEY: ${{ secrets.TFSTATE_STORAGE_ACCESS_KEY }}
+
+      - run: terraform plan -out=tfplan
+
+      - name: Apply
+        run: terraform apply -auto-approve tfplan
