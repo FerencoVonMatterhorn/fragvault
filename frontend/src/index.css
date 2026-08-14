@@ -106,12 +106,72 @@ body {
   text-decoration: none;
 }
 
+.masthead-left {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  min-width: 0;
+}
+
+.nav {
+  display: flex;
+  gap: 22px;
+}
+
+.nav-link {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--text);
+}
+
+/* Weight rather than colour for the current page: it stays legible in both
+   themes without needing a second accent. */
+.nav-link-active {
+  color: var(--text);
+  font-weight: 500;
+}
+
 .masthead-user {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 14px;
   color: var(--text-secondary);
+}
+
+/* --- Profile ------------------------------------------------------------ */
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  font-variant-numeric: tabular-nums;
 }
 
 .avatar {
@@ -543,6 +603,26 @@ details.panel[open] > summary::after {
   color: var(--text-secondary);
 }
 
+@media (max-width: 640px) {
+  /* The persona is already visible on the profile page; on a phone the nav
+     and the sign-out button are worth more than repeating it. */
+  .hide-narrow {
+    display: none;
+  }
+
+  .masthead {
+    padding: 0 16px;
+  }
+
+  .masthead-left {
+    gap: 16px;
+  }
+
+  .nav {
+    gap: 14px;
+  }
+}
+
 @media (max-width: 520px) {
   .card-head,
   .highlight {
@@ -553,5 +633,14 @@ details.panel[open] > summary::after {
 
   .row {
     flex-wrap: wrap;
+  }
+
+  .profile-head {
+    gap: 14px;
+  }
+
+  .profile-avatar {
+    width: 64px;
+    height: 64px;
   }
 }
