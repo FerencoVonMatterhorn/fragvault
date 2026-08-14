@@ -128,11 +128,31 @@ export function loginUrl(): string {
   return "/auth/steam/login";
 }
 
+/**
+ * Fills in anything the backend didn't send.
+ *
+ * Frontend and backend are separate containers updated independently, so a
+ * newer frontend routinely talks to an older backend for a few minutes after
+ * a deploy. A missing array must render as empty, not throw — a single
+ * undefined field taking the whole page blank is not an acceptable failure
+ * mode for a version skew that happens by design.
+ */
+function normalizeAnalysis(a: Analysis): Analysis {
+  return {
+    ...a,
+    rounds: a.rounds ?? [],
+    scoreboard: a.scoreboard ?? [],
+    highlights: a.highlights ?? [],
+    team_a_score: a.team_a_score ?? 0,
+    team_b_score: a.team_b_score ?? 0,
+  };
+}
+
 export async function getAnalysis(shareCode: string): Promise<Analysis> {
   const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analysis`, {
     credentials: "include",
   });
-  return jsonOrThrow<Analysis>(res);
+  return normalizeAnalysis(await jsonOrThrow<Analysis>(res));
 }
 
 /**
@@ -149,7 +169,7 @@ export async function analyzeMatch(shareCode: string, demoUrl?: string): Promise
     init.body = JSON.stringify({ demo_url: demoUrl });
   }
   const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analyze`, init);
-  return jsonOrThrow<Analysis>(res);
+  return normalizeAnalysis(await jsonOrThrow<Analysis>(res));
 }
 
 /**
