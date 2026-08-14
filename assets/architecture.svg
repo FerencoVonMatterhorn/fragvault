@@ -1,112 +1,144 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 640" width="1060" height="640" role="img" aria-label="FragVault deployment: browser to Caddy, which routes to the frontend and backend containers on one Azure VM">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 680" width="1120" height="680" role="img" aria-label="FragVault deployment: a browser reaches Caddy over HTTPS on one Azure VM; Caddy routes to the static frontend and the Go backend; the backend uses Postgres, asks a Node sidecar for demo URLs from the CS2 game coordinator, downloads demos from Valve, and calls the Steam Web API">
   <title>FragVault deployment topology</title>
 
   <defs>
     <style>
-      .f { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-      .m { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
-      .box { fill: #141f36; stroke: #2b3a58; stroke-width: 1.5; }
-      .h { font-size: 19px; font-weight: 600; fill: #e8eef7; }
-      .s { font-size: 13px; fill: #93a4c0; }
-      .lbl { font-size: 12.5px; fill: #ffb37a; }
-      .flow { stroke: #4f6a99; stroke-width: 2; fill: none; }
-      .ext { stroke: #3f5477; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+      .display { font-family: "IBM Plex Sans Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; letter-spacing: 0.05em; }
+      .body { font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif; }
+      .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+      .box { fill: #20242b; stroke: #2c313a; stroke-width: 1.5; }
+      .ext { fill: #1d2129; stroke: #2c313a; stroke-width: 1.5; stroke-dasharray: 5 4; }
+      .h { font-size: 17px; fill: #e7eaee; }
+      .s { font-size: 12.5px; fill: #98a0ac; }
     </style>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#4f6a99"/>
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b9be0"/>
     </marker>
-    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#3f5477"/>
+    <marker id="amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#d8a03d"/>
+    </marker>
+    <marker id="grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6b7480"/>
     </marker>
   </defs>
 
-  <rect width="1060" height="640" rx="14" fill="#0b1220"/>
+  <rect width="1120" height="680" rx="14" fill="#191c21"/>
 
-  <g class="f">
-    <text x="34" y="46" font-size="20" font-weight="700" fill="#f8fafc">FragVault — how it runs</text>
-    <text x="34" y="70" class="s">Phase 1: one small VM, three containers, everything behind Caddy</text>
+  <text class="display" x="34" y="46" font-size="20" fill="#e7eaee">HOW FRAGVAULT RUNS</text>
+  <text class="body s" x="34" y="68">One VM, five containers, and the three outside services it depends on</text>
 
-    <!-- Browser -->
-    <g>
-      <rect x="30" y="258" width="164" height="104" rx="12" class="box"/>
-      <text x="112" y="298" text-anchor="middle" class="h">Browser</text>
-      <text x="112" y="322" text-anchor="middle" class="s m">fragvault.pro</text>
-      <text x="112" y="342" text-anchor="middle" class="s">session cookie</text>
-    </g>
+  <!-- Browser -->
+  <g>
+    <rect x="28" y="290" width="150" height="86" rx="10" class="box"/>
+    <text class="display h" x="103" y="325" text-anchor="middle">BROWSER</text>
+    <text class="body s" x="103" y="348" text-anchor="middle">fragvault.pro</text>
+    <text class="body s" x="103" y="366" text-anchor="middle">session cookie</text>
+  </g>
 
-    <!-- The VM -->
-    <rect x="246" y="104" width="566" height="466" rx="16" fill="#0e182b" stroke="#2b3a58" stroke-width="1.5" stroke-dasharray="7 6"/>
-    <text x="270" y="136" font-size="15" font-weight="600" fill="#c7d3e6">Azure VM · swedencentral</text>
-    <text x="270" y="157" class="s m">Standard_B2ats_v2 · Docker Compose</text>
+  <!-- The VM -->
+  <rect x="214" y="100" width="620" height="540" rx="14" fill="#1c2027" stroke="#2c313a" stroke-width="1.5" stroke-dasharray="7 6"/>
+  <text class="display" x="238" y="130" font-size="14" fill="#c3cad4">AZURE VM · SWEDENCENTRAL</text>
+  <text class="body s mono" x="238" y="150">Standard_B2ats_v2 · docker compose</text>
 
-    <!-- Caddy -->
-    <g>
-      <rect x="278" y="256" width="180" height="128" rx="12" class="box"/>
-      <text x="368" y="292" text-anchor="middle" class="h">Caddy</text>
-      <text x="368" y="315" text-anchor="middle" class="s m">:80 · :443</text>
-      <text x="368" y="337" text-anchor="middle" class="s">TLS, auto-renewed</text>
-      <text x="368" y="359" text-anchor="middle" class="s m">vol: caddy_data</text>
-    </g>
+  <!-- Caddy -->
+  <g>
+    <rect x="246" y="290" width="150" height="98" rx="10" class="box"/>
+    <text class="display h" x="321" y="322" text-anchor="middle">CADDY</text>
+    <text class="body s mono" x="321" y="344" text-anchor="middle">:80 · :443</text>
+    <text class="body s" x="321" y="364" text-anchor="middle">TLS, auto-renewed</text>
+  </g>
 
-    <!-- Frontend -->
-    <g>
-      <rect x="530" y="176" width="248" height="112" rx="12" class="box"/>
-      <text x="654" y="212" text-anchor="middle" class="h">frontend</text>
-      <text x="654" y="236" text-anchor="middle" class="s">nginx · built SPA</text>
-      <text x="654" y="258" text-anchor="middle" class="s">static only, no proxy</text>
-    </g>
+  <!-- Frontend -->
+  <g>
+    <rect x="436" y="176" width="180" height="86" rx="10" class="box"/>
+    <text class="display h" x="526" y="208" text-anchor="middle">FRONTEND</text>
+    <text class="body s" x="526" y="230" text-anchor="middle">nginx · built SPA</text>
+    <text class="body s" x="526" y="248" text-anchor="middle">static only</text>
+  </g>
 
-    <!-- Backend -->
-    <g>
-      <rect x="530" y="374" width="248" height="112" rx="12" class="box"/>
-      <text x="654" y="410" text-anchor="middle" class="h">backend</text>
-      <text x="654" y="434" text-anchor="middle" class="s m">Go · :8080</text>
-      <text x="654" y="456" text-anchor="middle" class="s">stdlib only, no deps</text>
-    </g>
+  <!-- Backend -->
+  <g>
+    <rect x="436" y="296" width="180" height="104" rx="10" class="box"/>
+    <text class="display h" x="526" y="328" text-anchor="middle">BACKEND</text>
+    <text class="body s mono" x="526" y="350" text-anchor="middle">Go · :8080</text>
+    <text class="body s" x="526" y="370" text-anchor="middle">API + analysis worker</text>
+    <text class="body s" x="526" y="388" text-anchor="middle">one demo at a time</text>
+  </g>
 
-    <!-- Volume -->
-    <g>
-      <ellipse cx="654" cy="518" rx="66" ry="12" fill="#182740" stroke="#2b3a58"/>
-      <path d="M588 518 v22 a66 12 0 0 0 132 0 v-22" fill="#182740" stroke="#2b3a58"/>
-      <text x="654" y="566" text-anchor="middle" class="s m">fragvault_data</text>
-    </g>
+  <!-- Postgres -->
+  <g>
+    <rect x="436" y="440" width="180" height="98" rx="10" class="box"/>
+    <text class="display h" x="526" y="472" text-anchor="middle">POSTGRES</text>
+    <text class="body s" x="526" y="494" text-anchor="middle">matches · scoreboards</text>
+    <text class="body s" x="526" y="512" text-anchor="middle">rounds · kills · highlights</text>
+    <text class="body s" x="526" y="530" text-anchor="middle">so demos are read once</text>
+  </g>
 
-    <!-- Steam -->
-    <g>
-      <rect x="866" y="374" width="164" height="112" rx="12" class="box"/>
-      <text x="948" y="410" text-anchor="middle" class="h">Steam</text>
-      <text x="948" y="434" text-anchor="middle" class="s">OpenID login</text>
-      <text x="948" y="456" text-anchor="middle" class="s">Web API · matches</text>
-    </g>
+  <!-- GC sidecar -->
+  <g>
+    <rect x="656" y="296" width="150" height="104" rx="10" class="box"/>
+    <text class="display h" x="731" y="328" text-anchor="middle">GC SIDECAR</text>
+    <text class="body s" x="731" y="350" text-anchor="middle">Node</text>
+    <text class="body s" x="731" y="368" text-anchor="middle">sharecode →</text>
+    <text class="body s" x="731" y="386" text-anchor="middle">demo URL</text>
+  </g>
 
-    <!-- Registry -->
-    <g>
-      <rect x="866" y="176" width="164" height="112" rx="12" class="box"/>
-      <text x="948" y="212" text-anchor="middle" class="h">ghcr.io</text>
-      <text x="948" y="236" text-anchor="middle" class="s">images built by</text>
-      <text x="948" y="258" text-anchor="middle" class="s">GitHub Actions</text>
-    </g>
+  <!-- Watchtower replacement -->
+  <g>
+    <rect x="656" y="176" width="150" height="86" rx="10" class="box"/>
+    <text class="display h" x="731" y="208" text-anchor="middle">WUD</text>
+    <text class="body s" x="731" y="230" text-anchor="middle">pulls new images</text>
+    <text class="body s" x="731" y="248" text-anchor="middle">every 5 min</text>
+  </g>
+
+  <!-- External services -->
+  <g>
+    <rect x="876" y="176" width="216" height="86" rx="10" class="ext"/>
+    <text class="display h" x="984" y="208" text-anchor="middle">GHCR.IO</text>
+    <text class="body s" x="984" y="232" text-anchor="middle">images built by GitHub Actions</text>
+  </g>
+
+  <g>
+    <rect x="876" y="296" width="216" height="86" rx="10" class="ext"/>
+    <text class="display h" x="984" y="328" text-anchor="middle">CS2 GAME COORDINATOR</text>
+    <text class="body s" x="984" y="352" text-anchor="middle">Steam protocol, not HTTP</text>
+  </g>
+
+  <g>
+    <rect x="876" y="410" width="216" height="86" rx="10" class="ext"/>
+    <text class="display h" x="984" y="442" text-anchor="middle">VALVE REPLAYS</text>
+    <text class="body s" x="984" y="466" text-anchor="middle">the .dem, deleted after parsing</text>
+  </g>
+
+  <g>
+    <rect x="876" y="524" width="216" height="86" rx="10" class="ext"/>
+    <text class="display h" x="984" y="556" text-anchor="middle">STEAM WEB API</text>
+    <text class="body s" x="984" y="580" text-anchor="middle">login, avatars, sharecodes</text>
   </g>
 
   <!-- Flows -->
-  <g>
-    <path d="M194 310 H278" class="flow" marker-end="url(#a)"/>
-    <text x="236" y="300" text-anchor="middle" class="f lbl m">https</text>
+  <g fill="none" stroke-width="2">
+    <path d="M178 333 H246" stroke="#5b9be0" marker-end="url(#a)"/>
+    <text class="mono" x="212" y="322" font-size="11" fill="#5b9be0" text-anchor="middle">https</text>
 
-    <path d="M458 296 C 496 296, 500 232, 530 232" class="flow" marker-end="url(#a)"/>
-    <text x="500" y="196" text-anchor="middle" class="f lbl">everything else</text>
+    <path d="M396 316 C 416 316, 416 219, 436 219" stroke="#5b9be0" marker-end="url(#a)"/>
+    <text class="body" x="416" y="188" font-size="11.5" fill="#98a0ac" text-anchor="middle">everything else</text>
 
-    <path d="M458 344 C 496 344, 500 430, 530 430" class="flow" marker-end="url(#a)"/>
-    <text x="498" y="368" text-anchor="middle" class="f lbl m">/api/* · /auth/*</text>
+    <path d="M396 360 C 416 360, 416 348, 436 348" stroke="#5b9be0" marker-end="url(#a)"/>
+    <text class="mono" x="414" y="392" font-size="11" fill="#5b9be0" text-anchor="middle">/api · /auth</text>
 
-    <path d="M778 430 H866" class="flow" marker-end="url(#a)"/>
-    <text x="822" y="420" text-anchor="middle" class="f lbl">API key</text>
+    <path d="M526 400 V 440" stroke="#5b9be0" marker-end="url(#a)"/>
 
-    <path d="M654 486 V 506" class="flow" marker-end="url(#a)"/>
+    <path d="M616 340 H 656" stroke="#d8a03d" marker-end="url(#amber)"/>
+    <path d="M806 340 H 876" stroke="#d8a03d" marker-end="url(#amber)"/>
 
-    <path d="M866 232 H 800" class="ext" marker-end="url(#ad)"/>
-    <text x="833" y="222" text-anchor="middle" class="f s m">pull</text>
+    <path d="M616 380 C 700 380, 800 452, 876 452" stroke="#d8a03d" marker-end="url(#amber)"/>
+    <path d="M616 396 C 720 396, 800 566, 876 566" stroke="#d8a03d" marker-end="url(#amber)"/>
+
+    <path d="M806 219 H 876" stroke="#6b7480" stroke-dasharray="6 5" marker-end="url(#grey)"/>
+    <path d="M656 219 H 616" stroke="#6b7480" stroke-dasharray="6 5" marker-end="url(#grey)"/>
+    <path d="M690 262 C 690 280, 660 288, 640 296" stroke="#6b7480" stroke-dasharray="6 5" marker-end="url(#grey)"/>
   </g>
 
-  <text x="34" y="612" class="f s">Terraform provisions the VM and network. The state account and this deployment are managed outside it.</text>
+  <text class="body s" x="34" y="656">Terraform provisions the VM and network. Deployment state, the tfstate account and this compose file live outside it.</text>
 </svg>
