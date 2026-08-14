@@ -351,7 +351,14 @@ function MatchRow({ match }: { match: Match }) {
               {(analysis?.highlights.length ?? 0) === 1 ? "" : "s"} ›
             </Link>
           )}
-          {status === "failed" && <span className="status status-failed">Unavailable</span>}
+          {/* Failures are often transient — the game coordinator was down,
+              the download stalled — so a retry is a button, not a support
+              ticket. */}
+          {status === "failed" && !showForm && (
+            <button className="btn btn-secondary btn-small" onClick={() => void queue()} disabled={submitting}>
+              {submitting ? "Retrying…" : "Retry"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -386,7 +393,16 @@ function MatchRow({ match }: { match: Match }) {
 
       {/* Valve expires demos, so a failure here is usually "too old" rather
           than anything broken. */}
-      {status === "failed" && analysis?.error && <p className="small error">{analysis.error}</p>}
+      {status === "failed" && analysis?.error && (
+        <p className="small error" style={{ marginBottom: 0 }}>
+          {analysis.error}{" "}
+          {!showForm && (
+            <button className="linklike" onClick={() => setShowForm(true)}>
+              Use a demo URL instead
+            </button>
+          )}
+        </p>
+      )}
     </li>
   );
 }

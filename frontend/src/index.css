@@ -228,6 +228,19 @@ h2 {
   padding: 7px 15px;
 }
 
+/* A button that belongs mid-sentence: it acts on this page rather than
+   navigating, so it must not be an anchor, but it should read as one. */
+.linklike {
+  font: inherit;
+  color: var(--link);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .field {
   font: inherit;
   font-size: 16px;

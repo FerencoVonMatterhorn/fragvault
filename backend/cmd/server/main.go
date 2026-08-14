@@ -93,6 +93,15 @@ func main() {
 		log.Printf("GC_SIDECAR_URL not set — demo URLs must be supplied manually")
 	}
 
+	// Anything still marked running belongs to a previous process, since the
+	// worker is single and in-process. Left alone they would never be picked
+	// up again.
+	if requeued, rerr := store.RequeueOrphaned(ctx); rerr != nil {
+		log.Printf("warning: could not requeue orphaned analyses: %v", rerr)
+	} else if requeued > 0 {
+		log.Printf("requeued %d analysis job(s) interrupted by a restart", requeued)
+	}
+
 	// One worker, deliberately. Parsing is minutes of sustained CPU on a
 	// burstable VM; running analyses concurrently would throttle the web
 	// server along with them.
@@ -297,7 +306,9 @@ func main() {
 			body.DemoURL = resolved
 		}
 
-		created, err := store.Enqueue(r.Context(), shareCode, body.DemoURL)
+		// Queued is false when an analysis already exists and isn't failed —
+		// asking again is a no-op by design.
+		queued, err := store.Enqueue(r.Context(), shareCode, body.DemoURL)
 		if err != nil {
 			log.Printf("error: Enqueue failed for %s: %v", shareCode, err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -310,10 +321,10 @@ func main() {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		// 200 rather than 201 when it already existed: asking twice is a
-		// no-op by design, and the caller gets the same state either way.
+		// 202 when work was actually queued (new or retried), 200 when the
+		// caller just gets the existing state back.
 		status := http.StatusOK
-		if created {
+		if queued {
 			status = http.StatusAccepted
 		}
 		writeJSON(w, status, analysis)

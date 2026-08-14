@@ -52,21 +52,52 @@ type AnalysisHighlight struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// Enqueue queues an analysis, or returns the existing one.
+// Enqueue queues an analysis, or re-queues one that failed.
 //
-// The UNIQUE (share_code, parser_version) constraint does the work: asking
-// twice cannot start a second parse of the same demo. That is the whole
-// mechanism for "don't analyse it again".
-func (s *Store) Enqueue(ctx context.Context, shareCode, demoURL string) (created bool, err error) {
+// The UNIQUE (share_code, parser_version) constraint still does the main
+// work: asking twice cannot start a second parse of the same demo. The one
+// exception is a failed analysis, which the caller is explicitly allowed to
+// retry — failures are often transient (the game coordinator was down, the
+// download stalled), and without this a single bad minute would leave a
+// match unanalysable forever at this parser version.
+//
+// A finished or in-flight analysis is left alone: re-running those is what
+// bumping ParserVersion is for.
+func (s *Store) Enqueue(ctx context.Context, shareCode, demoURL string) (queued bool, err error) {
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO demo_analyses (share_code, parser_version, status, demo_url)
 		VALUES ($1, $2, 'pending', $3)
-		ON CONFLICT (share_code, parser_version) DO NOTHING`,
+		ON CONFLICT (share_code, parser_version) DO UPDATE
+		SET status      = 'pending',
+		    error       = '',
+		    demo_url    = EXCLUDED.demo_url,
+		    started_at  = NULL,
+		    finished_at = NULL
+		WHERE demo_analyses.status = 'failed'`,
 		shareCode, demos.ParserVersion, demoURL)
 	if err != nil {
 		return false, fmt.Errorf("enqueueing analysis for %s: %w", shareCode, err)
 	}
+	// Zero rows means the conflict hit an analysis that isn't failed, so
+	// nothing was changed and nothing needs to be.
 	return tag.RowsAffected() == 1, nil
+}
+
+// RequeueOrphaned resets analyses left mid-flight by a restart.
+//
+// The worker is single and in-process, so any row still marked running at
+// startup belongs to a process that is gone. Without this they would sit
+// there forever: nothing claims a running row, and the retry path only
+// covers failures.
+func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE demo_analyses
+		SET status = 'pending', started_at = NULL
+		WHERE status = 'running'`)
+	if err != nil {
+		return 0, fmt.Errorf("requeueing orphaned analyses: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // GetAnalysis returns the analysis for a sharecode at the current parser
