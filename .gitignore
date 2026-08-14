@@ -23,6 +23,10 @@ infrastructure/.terraform.lock.hcl.backup
 # VM; deploy/.env.example is the committed template.
 deploy/.env
 
+# Local agent tooling: launch configs and session state, machine-specific and
+# of no use to anyone cloning this.
+.claude/
+
 # Editors / OS
 .DS_Store
 *.swp

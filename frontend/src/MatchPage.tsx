@@ -51,7 +51,7 @@ export default function MatchPage({ me }: { me: Me }) {
         </Link>
       </p>
 
-      <header style={{ marginBottom: 28 }}>
+      <header className="match-header">
         <div className="match-title">
           {/* Decorative: the map name sits right beside it, so announcing the
               image too would only repeat it. */}

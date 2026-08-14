@@ -10,15 +10,24 @@
 :root {
   --bg: #ffffff;
   --bg-elevated: #f5f5f7;
+  /* Cards sit on the page rather than in it, so they get their own surface
+     and a shadow instead of only a border. */
+  --bg-raised: #ffffff;
   --text: #1d1d1f;
   --text-secondary: #6e6e73;
-  --hairline: #d2d2d7;
+  --hairline: #d9d9de;
   --accent: #0071e3;
   --accent-hover: #0077ed;
   --accent-text: #ffffff;
   --link: #0066cc;
   --danger: #b3261e;
   --success: #248a3d;
+
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.1);
+  /* A wide background wash so the page doesn't open on flat paper. Kept far
+     below the threshold where it reads as a glow on any element — it is
+     atmosphere behind the column, not decoration attached to a component. */
+  --hero-wash: radial-gradient(120% 90% at 50% -10%, rgba(0, 113, 227, 0.09), transparent 62%);
 
   --radius-card: 18px;
   --radius-pill: 980px;
@@ -31,16 +40,24 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --bg-elevated: #1d1d1f;
-    --text: #f5f5f7;
-    --text-secondary: #a1a1a6;
-    --hairline: #424245;
-    --accent: #0071e3;
-    --accent-hover: #0077ed;
+    /* Not #000. Pure black makes every edge a hard line and every surface
+       look like a hole; a near-black with real surfaces above it gives the
+       layout somewhere to sit. */
+    --bg: #0b0d10;
+    --bg-elevated: #15181d;
+    --bg-raised: #14171c;
+    --text: #e9ebef;
+    --text-secondary: #9aa1ad;
+    --hairline: #262b33;
+    /* Apple's dark-mode system blue: the light-mode blue goes muddy here. */
+    --accent: #0a84ff;
+    --accent-hover: #2b95ff;
     --link: #2997ff;
     --danger: #ff6961;
     --success: #30d158;
+
+    --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px rgba(0, 0, 0, 0.55);
+    --hero-wash: radial-gradient(120% 90% at 50% -10%, rgba(10, 132, 255, 0.13), transparent 62%);
 
     color-scheme: dark;
   }
@@ -56,6 +73,11 @@ html {
 
 body {
   margin: 0;
+  /* The hero wash is deliberately wider than the column, which would
+     otherwise produce a horizontal scrollbar. `clip` rather than `hidden`:
+     hidden turns this into a scroll container and breaks the sticky
+     masthead. */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
@@ -186,6 +208,48 @@ body {
 .hero {
   text-align: center;
   padding: 80px 0 24px;
+  position: relative;
+}
+
+/* The glow is painted behind and wider than the column, so the page opens
+   with some depth instead of a headline on a blank field. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -140px -50vw 0;
+  background: var(--hero-wash);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* A band of map emblems under the hero: recognisable to anyone who plays,
+   invisible as a distraction. Masked to fade at both edges so it reads as
+   texture rather than as a row of icons that got cut off. */
+.hero-art {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 26px;
+  margin: 8px 0 32px;
+  opacity: 0.55;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  pointer-events: none;
+}
+
+.hero-art img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Fewer emblems on a narrow screen rather than smaller ones, which would
+   just turn them into mush. */
+@media (max-width: 640px) {
+  .hero-art img:nth-child(n + 5) {
+    display: none;
+  }
 }
 
 .hero h1 {
@@ -320,11 +384,24 @@ h2 {
 
 /* --- Surfaces ----------------------------------------------------------- */
 
+/* One elevation language: a hairline defines structure at rest, and a shadow
+   means "floating", which only happens on hover. Stacking border + shadow +
+   background shift at rest is the thing that makes an interface look busy
+   without looking designed. */
 .card {
-  background: var(--bg);
+  background: var(--bg-raised);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-card);
   padding: 20px 22px;
+  transition: box-shadow 180ms ease-out, transform 180ms ease-out, border-color 180ms ease-out;
+}
+
+/* Rows are the main thing you scan, so they respond — a single pixel is
+   enough to feel alive without turning the list into a trampoline. */
+.card:hover {
+  border-color: transparent;
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
 }
 
 .card + .card {
@@ -340,8 +417,27 @@ h2 {
 
 .panel {
   background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
   border-radius: var(--radius-card);
   padding: 22px 24px;
+}
+
+/* Empty and loading states get the map emblem treatment too, so a page with
+   nothing on it still looks like part of the product. */
+.empty {
+  text-align: center;
+  padding: 56px 22px;
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius-card);
+  color: var(--text-secondary);
+}
+
+.empty img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  opacity: 0.35;
+  margin-bottom: 14px;
 }
 
 .notice {
@@ -452,11 +548,27 @@ h2 {
 }
 
 .scoreline {
-  font-size: 40px;
+  font-size: 44px;
   font-weight: 600;
   letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
-  margin: 12px 0 0;
+  margin: 16px 0 0;
+}
+
+/* Match pages get the same wash as the hero, keyed to the map emblem sitting
+   next to the title. */
+.match-header {
+  position: relative;
+  margin-bottom: 28px;
+}
+
+.match-header::before {
+  content: "";
+  position: absolute;
+  inset: -60px -50vw -20px;
+  background: var(--hero-wash);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .tabs {
@@ -601,6 +713,41 @@ details.panel[open] > summary::after {
   text-align: center;
   padding: 120px 22px;
   color: var(--text-secondary);
+}
+
+/* Every interactive element gets a visible focus ring, including the ones
+   that aren't buttons. Keyboard users are otherwise navigating blind through
+   the nav, the tabs and the scoreboard's profile links. */
+.nav-link:focus-visible,
+.tab:focus-visible,
+.linklike:focus-visible,
+.player:focus-visible,
+.masthead-brand:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.field:focus-visible {
+  outline: none;
+}
+
+/* Motion is decoration here — none of it conveys meaning, so all of it can
+   go for anyone who has asked for less of it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card:hover {
+    transform: none;
+  }
 }
 
 @media (max-width: 640px) {

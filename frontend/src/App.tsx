@@ -112,12 +112,24 @@ function NotFound() {
   );
 }
 
+// Recognisable at a glance to anyone who plays, which is the entire point of
+// putting them here.
+const HERO_MAPS = ["de_mirage", "de_dust2", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train"];
+
 function SignedOut({ backendOffline = false }: { backendOffline?: boolean }) {
   return (
     <>
       <div className="hero">
         <h1>Every round you played. The moments worth keeping.</h1>
         <p>Sign in with Steam and FragVault finds your best plays automatically.</p>
+      </div>
+
+      {/* Decorative: it says nothing the headline doesn't, so it stays out of
+          the accessibility tree entirely. */}
+      <div className="hero-art" aria-hidden="true">
+        {HERO_MAPS.map((m) => (
+          <img key={m} src={`/maps/${m}.png`} alt="" loading="lazy" />
+        ))}
       </div>
 
       {backendOffline && <OfflineNotice />}
