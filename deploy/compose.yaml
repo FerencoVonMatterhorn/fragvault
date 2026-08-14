@@ -46,6 +46,9 @@ services:
       # compose network, and TLS between two containers on the same host buys
       # nothing but certificate management.
       DATABASE_URL: postgres://fragvault:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/fragvault?sslmode=disable
+      # Optional. Without it, analysis still works from a manually supplied
+      # demo URL rather than breaking.
+      GC_SIDECAR_URL: http://gc-sidecar:3001
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +56,22 @@ services:
       # Still mounted for the one-time import of the old JSON store. Nothing
       # writes here any more.
       - fragvault_data:/data
+    labels:
+      wud.watch: "true"
+      wud.watch.digest: "true"
+
+  # Resolves sharecodes to demo URLs by talking to the CS2 game coordinator,
+  # which has no HTTP API and no Go client. See gc-sidecar/README.md — it
+  # needs a dedicated, disposable Steam account, never a personal one.
+  gc-sidecar:
+    image: ghcr.io/ferencovonmatterhorn/fragvault-gc-sidecar:latest
+    restart: unless-stopped
+    # STEAM_ACCOUNT_NAME, STEAM_PASSWORD, optionally STEAM_SHARED_SECRET.
+    env_file: .env
+    volumes:
+      # Holds the Steam refresh token, so a restart doesn't need the password
+      # or a human to answer Steam Guard.
+      - gc_data:/data
     labels:
       wud.watch: "true"
       wud.watch.digest: "true"
@@ -118,6 +137,9 @@ volumes:
   caddy_config:
   # The old JSON store, kept only so the one-time import can find it.
   fragvault_data:
+  # The Steam refresh token. Losing it costs one interactive re-login, and
+  # nothing else — no application data lives here.
+  gc_data:
   # Onboarded users, their Valve auth codes, discovered matches and analysis
   # results. The stateful thing in this deployment — back it up before
   # rebuilding the VM:  docker compose exec -T postgres pg_dump -U fragvault fragvault > backup.sql

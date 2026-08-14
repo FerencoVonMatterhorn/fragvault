@@ -55,6 +55,16 @@ secrets in this file or any other.
 - Re-analysis is prevented by `UNIQUE (share_code, parser_version)` on
   `demo_analyses`. Bumping `parser_version` is the deliberate way to force
   demos to be parsed again.
+- **Demo URLs only come from the CS2 game coordinator.** There is no Steam
+  Web API for them, and no maintained Go library speaks that protocol — hence
+  `gc-sidecar/`, a thin Node service. Don't go looking for an HTTP endpoint
+  that returns a demo URL; it doesn't exist.
+- The sidecar needs a **dedicated, disposable Steam account**. Its dependency
+  tree carries CVEs it can't escape (`steam-user` → `protobufjs`, `adm-zip`),
+  documented in `gc-sidecar/README.md`.
+- Analysis parsing is separated from detection on purpose: `Parse` emits
+  plain events, detectors are pure functions over them, and that's what makes
+  them testable without a huge demo fixture. Keep it that way.
 - Secrets live in `/opt/fragvault/.env` **on the VM only**. `deploy/.env.example`
   is the committed template.
 - Deployment is manual: `docker compose pull && docker compose up -d`.

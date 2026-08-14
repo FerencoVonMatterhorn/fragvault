@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -61,6 +62,16 @@ func main() {
 	sessions := session.NewManager([]byte(sessionSecretHex), 30*24*time.Hour, !devInsecureCookie)
 	store := db.NewStore(pool)
 	steamAPI := matches.NewSteamAPIClient(steamWebAPIKey)
+
+	// Optional: without it, analysis still works from an explicitly supplied
+	// demo URL, so the app degrades to the manual path rather than breaking.
+	var gcResolver *demos.GCResolver
+	if gcURL := os.Getenv("GC_SIDECAR_URL"); gcURL != "" {
+		gcResolver = demos.NewGCResolver(gcURL)
+		log.Printf("game coordinator sidecar configured at %s", gcURL)
+	} else {
+		log.Printf("GC_SIDECAR_URL not set — demo URLs must be supplied manually")
+	}
 
 	// One worker, deliberately. Parsing is minutes of sustained CPU on a
 	// burstable VM; running analyses concurrently would throttle the web
@@ -233,16 +244,37 @@ func main() {
 			return
 		}
 
+		// An explicit demo_url is optional and wins when present, which keeps
+		// a manual escape hatch for demos the GC won't hand over (FACEIT,
+		// a friend's file, anything already expired on Valve's side).
 		var body struct {
 			DemoURL string `json:"demo_url"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
+		if r.ContentLength > 0 {
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "invalid request body", http.StatusBadRequest)
+				return
+			}
 		}
+
 		if body.DemoURL == "" {
-			http.Error(w, "demo_url is required until automatic demo lookup exists", http.StatusBadRequest)
-			return
+			if gcResolver == nil {
+				http.Error(w, "demo_url is required: automatic lookup is not configured", http.StatusBadRequest)
+				return
+			}
+			resolved, rerr := gcResolver.Resolve(r.Context(), shareCode)
+			if rerr != nil {
+				log.Printf("warning: resolving demo URL for %s: %v", shareCode, rerr)
+				if errors.Is(rerr, demos.ErrNoDemoAvailable) {
+					// Expected for older matches: Valve keeps demos for a
+					// limited window.
+					http.Error(w, rerr.Error(), http.StatusNotFound)
+					return
+				}
+				http.Error(w, "could not look up the demo right now", http.StatusServiceUnavailable)
+				return
+			}
+			body.DemoURL = resolved
 		}
 
 		created, err := store.Enqueue(r.Context(), shareCode, body.DemoURL)

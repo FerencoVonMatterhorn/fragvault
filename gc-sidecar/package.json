@@ -1,0 +1,16 @@
+{
+  "name": "fragvault-gc-sidecar",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Resolves CS2 demo URLs via the game coordinator, which has no HTTP API and no Go client",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js"
+  },
+  "dependencies": {
+    "globaloffensive": "^3.2.0",
+    "steam-totp": "^2.1.2",
+    "steam-user": "^5.2.3"
+  }
+}

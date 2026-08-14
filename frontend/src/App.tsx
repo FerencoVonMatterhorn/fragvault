@@ -259,19 +259,26 @@ function MatchRow({ match }: { match: Match }) {
     return () => clearInterval(id);
   }, [working, match.share_code]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function queue(url?: string) {
     setSubmitting(true);
     setError("");
     try {
-      setAnalysis(await analyzeMatch(match.share_code, demoUrl.trim()));
+      setAnalysis(await analyzeMatch(match.share_code, url));
       setShowForm(false);
       setDemoUrl("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // Automatic lookup failed — most often an expired demo. Offer the
+      // manual route rather than leaving a dead end.
+      if (!url) setShowForm(true);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    void queue(demoUrl.trim());
   }
 
   return (
@@ -285,7 +292,11 @@ function MatchRow({ match }: { match: Match }) {
           </div>
         </div>
         <div style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>
-          {status === "none" && !showForm && <button onClick={() => setShowForm(true)}>Analyse</button>}
+          {status === "none" && !showForm && (
+            <button onClick={() => void queue()} disabled={submitting}>
+              {submitting ? "Looking up demo…" : "Analyse"}
+            </button>
+          )}
           {working && <span style={{ color: "#666" }}>Analysing…</span>}
           {status === "done" && <span>{analysis?.highlights.length ?? 0} highlights</span>}
           {status === "failed" && <span style={{ color: "crimson" }}>Failed</span>}
@@ -293,7 +304,11 @@ function MatchRow({ match }: { match: Match }) {
       </div>
 
       {showForm && (
-        <form onSubmit={submit} style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+        <form onSubmit={submit} style={{ marginTop: "0.75rem" }}>
+          <p style={{ fontSize: "0.85rem", color: "#666", margin: "0 0 0.5rem" }}>
+            Paste a demo URL directly. Useful when the match is too old for Valve to still have the demo.
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
           <input
             style={{ flex: 1 }}
             placeholder="Demo URL (.dem or .dem.bz2)"
@@ -306,6 +321,7 @@ function MatchRow({ match }: { match: Match }) {
           <button type="button" onClick={() => setShowForm(false)} disabled={submitting}>
             Cancel
           </button>
+          </div>
         </form>
       )}
 

@@ -107,14 +107,17 @@ export async function getAnalysis(shareCode: string): Promise<Analysis> {
 /**
  * Queues a demo for analysis. Safe to call twice — the backend returns the
  * existing analysis rather than parsing the same demo again.
+ *
+ * With no demoUrl the backend resolves it from the game coordinator. Passing
+ * one explicitly is the escape hatch for demos the GC won't hand over.
  */
-export async function analyzeMatch(shareCode: string, demoUrl: string): Promise<Analysis> {
-  const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analyze`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ demo_url: demoUrl }),
-  });
+export async function analyzeMatch(shareCode: string, demoUrl?: string): Promise<Analysis> {
+  const init: RequestInit = { method: "POST", credentials: "include" };
+  if (demoUrl) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify({ demo_url: demoUrl });
+  }
+  const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analyze`, init);
   return jsonOrThrow<Analysis>(res);
 }
 
