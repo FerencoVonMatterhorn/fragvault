@@ -1,0 +1,387 @@
+/*
+ * Design language borrowed from Apple's marketing pages: a lot of whitespace,
+ * one tight bold headline per view, hairline borders instead of shadows, pill
+ * buttons, and a near-monochrome palette with a single blue accent.
+ *
+ * Everything is tokens first so dark mode is a palette swap rather than a
+ * second set of rules.
+ */
+
+:root {
+  --bg: #ffffff;
+  --bg-elevated: #f5f5f7;
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --hairline: #d2d2d7;
+  --accent: #0071e3;
+  --accent-hover: #0077ed;
+  --accent-text: #ffffff;
+  --link: #0066cc;
+  --danger: #b3261e;
+  --success: #248a3d;
+
+  --radius-card: 18px;
+  --radius-pill: 980px;
+  --radius-field: 12px;
+
+  --header-height: 52px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --bg-elevated: #1d1d1f;
+    --text: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --hairline: #424245;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --link: #2997ff;
+    --danger: #ff6961;
+    --success: #30d158;
+
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
+    system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.47059;
+  letter-spacing: -0.022em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Layout ------------------------------------------------------------- */
+
+.page {
+  max-width: 692px;
+  margin: 0 auto;
+  padding: 0 22px 96px;
+}
+
+.section {
+  margin-top: 64px;
+}
+
+/* Translucent sticky bar, the most recognisable part of the reference. */
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.masthead-brand {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.masthead-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: block;
+}
+
+/* --- Typography --------------------------------------------------------- */
+
+.hero {
+  text-align: center;
+  padding: 80px 0 24px;
+}
+
+.hero h1 {
+  font-size: clamp(40px, 7vw, 56px);
+  line-height: 1.07143;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0 0 12px;
+  /* Without this the last line ends up orphaned — "keeping." alone under a
+     full-width line, which is exactly what a centred headline shouldn't do. */
+  text-wrap: balance;
+}
+
+.hero p {
+  font-size: 21px;
+  line-height: 1.381;
+  letter-spacing: 0.011em;
+  color: var(--text-secondary);
+  margin: 0 auto;
+  /* Wide enough that the line doesn't break in the middle of "and FragVault",
+     balanced so the two lines stay even. */
+  max-width: 36ch;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: 28px;
+  line-height: 1.14286;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.muted {
+  color: var(--text-secondary);
+}
+
+.small {
+  font-size: 14px;
+  line-height: 1.42859;
+  letter-spacing: -0.016em;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* --- Controls ----------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.17648;
+  letter-spacing: -0.022em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.btn:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--link);
+  border-color: var(--hairline);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+
+/* Small pill for in-card actions, where a full-size button would dominate. */
+.btn-small {
+  font-size: 14px;
+  padding: 7px 15px;
+}
+
+.field {
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-field);
+  padding: 11px 14px;
+  width: 100%;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* --- Surfaces ----------------------------------------------------------- */
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-card);
+  padding: 22px 24px;
+}
+
+.notice {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-card);
+  padding: 16px 20px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+}
+
+.error {
+  color: var(--danger);
+}
+
+.success {
+  color: var(--success);
+}
+
+/* --- Status ------------------------------------------------------------- */
+
+.status {
+  font-size: 14px;
+  letter-spacing: -0.016em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.status-done {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.status-failed {
+  color: var(--danger);
+}
+
+/* --- Lists -------------------------------------------------------------- */
+
+.list-reset {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.highlights {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.highlight {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  font-size: 15px;
+}
+
+.highlight-kind {
+  font-weight: 500;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.row > .field {
+  flex: 1;
+}
+
+/* --- Disclosure --------------------------------------------------------- */
+
+details.panel > summary {
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+}
+
+details.panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.panel > summary::after {
+  content: " ›";
+  color: var(--text-secondary);
+}
+
+details.panel[open] > summary::after {
+  content: " ⌄";
+}
+
+.centered {
+  text-align: center;
+  padding: 120px 22px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 520px) {
+  .card-head,
+  .highlight {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .row {
+    flex-wrap: wrap;
+  }
+}

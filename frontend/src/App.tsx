@@ -34,96 +34,100 @@ export default function App() {
       .catch((err) => setMeState(err instanceof BackendUnavailableError ? "offline" : "error"));
   }, []);
 
-  if (meState === "loading") return <Centered>Loading…</Centered>;
+  if (meState === "loading") return <div className="centered">Loading…</div>;
   // Reserved for the backend answering with something unexpected, which does
   // suggest a real bug rather than an absent service.
-  if (meState === "error") return <Centered>Something went wrong talking to the backend.</Centered>;
+  if (meState === "error") return <div className="centered">Something went wrong talking to the backend.</div>;
 
   const offline = meState === "offline";
 
   return (
-    <div style={{ maxWidth: 640, margin: "4rem auto", fontFamily: "system-ui, sans-serif" }}>
-      <h1>FragVault</h1>
-      {offline && <OfflineNotice />}
-      {me ? <LoggedIn me={me} onLoggedOut={() => setMe(null)} /> : <LoggedOut backendOffline={offline} />}
-    </div>
+    <>
+      <header className="masthead">
+        <p className="masthead-brand">FragVault</p>
+        {me && <SignedInAs me={me} onLoggedOut={() => setMe(null)} />}
+      </header>
+
+      <main className="page">
+        {me ? (
+          <SignedIn offline={offline} />
+        ) : (
+          <SignedOut backendOffline={offline} />
+        )}
+      </main>
+    </>
   );
 }
 
-function OfflineNotice() {
-  return (
-    <p
-      role="status"
-      style={{
-        background: "#fff4e5",
-        border: "1px solid #ffb74d",
-        borderRadius: 8,
-        padding: "0.75rem 1rem",
-        fontSize: "0.95rem",
-      }}
-    >
-      Can't reach the backend right now, so signing in and match history are unavailable. Nothing is wrong on your end —
-      try again in a minute.
-    </p>
-  );
-}
-
-function LoggedOut({ backendOffline = false }: { backendOffline?: boolean }) {
-  const buttonStyle = { padding: "0.6rem 1.2rem", fontSize: "1rem" };
-
-  return (
-    <div>
-      <p>Sign in with Steam to see your recent CS2 matches.</p>
-      {/* Not wrapped in the login link while offline: /auth/steam/login goes
-          through the same backend, so following it would only produce a 502. */}
-      {backendOffline ? (
-        <button style={buttonStyle} disabled>
-          Log in with Steam
-        </button>
-      ) : (
-        <a href={loginUrl()}>
-          <button style={buttonStyle}>Log in with Steam</button>
-        </a>
-      )}
-    </div>
-  );
-}
-
-function LoggedIn({ me, onLoggedOut }: { me: Me; onLoggedOut: () => void }) {
+function SignedInAs({ me, onLoggedOut }: { me: Me; onLoggedOut: () => void }) {
   const [loggingOut, setLoggingOut] = useState(false);
-  const [logoutError, setLogoutError] = useState("");
 
   async function handleLogout() {
     setLoggingOut(true);
-    setLogoutError("");
     try {
       await logout();
       // Only on success: leaving the UI signed in after a failed logout would
       // be an outright lie about whether the session still exists.
       onLoggedOut();
-    } catch (err) {
-      setLogoutError(err instanceof Error ? err.message : String(err));
+    } catch {
       setLoggingOut(false);
     }
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
-        <p style={{ margin: 0 }}>
-          Signed in as <strong>{me.persona}</strong>
-          {me.avatar_url && (
-            <img src={me.avatar_url} alt="" width={32} height={32} style={{ verticalAlign: "middle", marginLeft: 8 }} />
-          )}
-        </p>
-        <button onClick={handleLogout} disabled={loggingOut}>
-          {loggingOut ? "Logging out…" : "Log out"}
-        </button>
+    <div className="masthead-user">
+      {me.avatar_url && <img className="avatar" src={me.avatar_url} alt="" width={28} height={28} />}
+      <span>{me.persona}</span>
+      <button className="btn btn-secondary btn-small" onClick={handleLogout} disabled={loggingOut}>
+        {loggingOut ? "Signing out…" : "Sign out"}
+      </button>
+    </div>
+  );
+}
+
+function SignedOut({ backendOffline = false }: { backendOffline?: boolean }) {
+  return (
+    <>
+      <div className="hero">
+        <h1>Every round you played. The moments worth keeping.</h1>
+        <p>Sign in with Steam and FragVault finds your best plays automatically.</p>
       </div>
-      {logoutError && <p style={{ color: "crimson" }}>Couldn't log out: {logoutError}</p>}
+
+      {backendOffline && <OfflineNotice />}
+
+      <div style={{ textAlign: "center" }}>
+        {/* Not wrapped in the login link while offline: /auth/steam/login goes
+            through the same backend, so following it would only produce a 502. */}
+        {backendOffline ? (
+          <button className="btn" disabled>
+            Sign in with Steam
+          </button>
+        ) : (
+          <a href={loginUrl()}>
+            <button className="btn">Sign in with Steam</button>
+          </a>
+        )}
+      </div>
+    </>
+  );
+}
+
+function SignedIn({ offline }: { offline: boolean }) {
+  return (
+    <>
+      {offline && <OfflineNotice />}
       <Onboarding />
       <MatchList />
-    </div>
+    </>
+  );
+}
+
+function OfflineNotice() {
+  return (
+    <p className="notice" role="status">
+      Can't reach the backend right now, so signing in and match history are unavailable. Nothing is wrong on your end —
+      try again in a minute.
+    </p>
   );
 }
 
@@ -146,28 +150,40 @@ function Onboarding() {
   }
 
   return (
-    <details style={{ margin: "1.5rem 0", border: "1px solid #ccc", borderRadius: 8, padding: "0.75rem 1rem" }}>
-      <summary style={{ cursor: "pointer", fontWeight: 600 }}>One-time setup: connect your match history</summary>
-      <p style={{ fontSize: "0.9rem", color: "#444" }}>
+    <details className="panel section">
+      <summary>Connect your match history</summary>
+      <p className="small muted">
         Get your game authentication code from{" "}
-        <a href="https://help.steampowered.com/en/wizard/HelpWithGameIssue?appid=730&issueid=128" target="_blank" rel="noreferrer">
+        <a
+          href="https://help.steampowered.com/en/wizard/HelpWithGameIssue?appid=730&issueid=128"
+          target="_blank"
+          rel="noreferrer"
+        >
           Steam Support
-        </a>{" "}
-        and a starting sharecode from CS2's in-game match history settings, then paste both below. This only needs to be
-        done once.
+        </a>
+        , and a sharecode from CS2's match history. Use an <strong>older</strong> match — discovery walks forward from
+        the code you give it, so your most recent one finds nothing.
       </p>
-      <form onSubmit={submit} style={{ display: "grid", gap: "0.5rem", maxWidth: 360 }}>
-        <input placeholder="Game auth code" value={authCode} onChange={(e) => setAuthCode(e.target.value)} />
+      <form onSubmit={submit} className="stack" style={{ maxWidth: 380, marginTop: 16 }}>
         <input
-          placeholder="Starting sharecode (CSGO-...)"
+          className="field"
+          placeholder="Game auth code"
+          value={authCode}
+          onChange={(e) => setAuthCode(e.target.value)}
+        />
+        <input
+          className="field"
+          placeholder="Starting sharecode (CSGO-…)"
           value={startingShareCode}
           onChange={(e) => setStartingShareCode(e.target.value)}
         />
-        <button type="submit" disabled={status === "saving"}>
-          Save
-        </button>
-        {status === "saved" && <p style={{ color: "green" }}>Saved — refresh matches below.</p>}
-        {status === "error" && <p style={{ color: "crimson" }}>{errorMsg}</p>}
+        <div>
+          <button className="btn" type="submit" disabled={status === "saving"}>
+            {status === "saving" ? "Saving…" : "Save"}
+          </button>
+        </div>
+        {status === "saved" && <p className="small success">Saved — refresh your matches below.</p>}
+        {status === "error" && <p className="small error">{errorMsg}</p>}
       </form>
     </details>
   );
@@ -194,24 +210,27 @@ function MatchList() {
   useEffect(load, []);
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <section className="section">
+      <div className="section-head">
         <h2>Recent matches</h2>
-        <button onClick={load} disabled={state === "loading"}>
-          Refresh
+        <button className="btn btn-secondary btn-small" onClick={load} disabled={state === "loading"}>
+          {state === "loading" ? "Checking…" : "Refresh"}
         </button>
       </div>
-      {state === "loading" && <p>Checking for matches…</p>}
-      {state === "error" && <p style={{ color: "crimson" }}>{errorMsg}</p>}
-      {state === "ready" && matches && matches.length === 0 && <p>No matches discovered yet.</p>}
+
+      {state === "loading" && <p className="small muted">Checking for matches…</p>}
+      {state === "error" && <p className="small error">{errorMsg}</p>}
+      {state === "ready" && matches && matches.length === 0 && (
+        <p className="small muted">No matches discovered yet.</p>
+      )}
       {state === "ready" && matches && matches.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul className="list-reset">
           {[...matches].reverse().map((m) => (
             <MatchRow key={m.share_code} match={m} />
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -282,70 +301,87 @@ function MatchRow({ match }: { match: Match }) {
   }
 
   return (
-    <li style={{ border: "1px solid #ddd", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "0.75rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+    <li className="card">
+      <div className="card-head">
         <div>
-          <code>{match.share_code}</code>
-          <div style={{ fontSize: "0.85rem", color: "#666" }}>
-            discovered {new Date(match.discovered_at).toLocaleString()}
+          <div className="mono">{match.share_code}</div>
+          <div className="small muted">
+            {new Date(match.discovered_at).toLocaleDateString(undefined, {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
             {analysis?.map_name && ` · ${analysis.map_name}`}
           </div>
         </div>
-        <div style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+
+        <div>
           {status === "none" && !showForm && (
-            <button onClick={() => void queue()} disabled={submitting}>
+            <button className="btn btn-secondary btn-small" onClick={() => void queue()} disabled={submitting}>
               {submitting ? "Looking up demo…" : "Analyse"}
             </button>
           )}
-          {working && <span style={{ color: "#666" }}>Analysing…</span>}
-          {status === "done" && <span>{analysis?.highlights.length ?? 0} highlights</span>}
-          {status === "failed" && <span style={{ color: "crimson" }}>Failed</span>}
+          {working && <span className="status">Analysing…</span>}
+          {status === "done" && (
+            <span className="status status-done">
+              {analysis?.highlights.length ?? 0} highlight{(analysis?.highlights.length ?? 0) === 1 ? "" : "s"}
+            </span>
+          )}
+          {status === "failed" && <span className="status status-failed">Unavailable</span>}
         </div>
       </div>
 
       {showForm && (
-        <form onSubmit={submit} style={{ marginTop: "0.75rem" }}>
-          <p style={{ fontSize: "0.85rem", color: "#666", margin: "0 0 0.5rem" }}>
+        <form onSubmit={submit} style={{ marginTop: 16 }}>
+          <p className="small muted" style={{ margin: "0 0 10px" }}>
             Paste a demo URL directly. Useful when the match is too old for Valve to still have the demo.
           </p>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-          <input
-            style={{ flex: 1 }}
-            placeholder="Demo URL (.dem or .dem.bz2)"
-            value={demoUrl}
-            onChange={(e) => setDemoUrl(e.target.value)}
-          />
-          <button type="submit" disabled={submitting || demoUrl.trim() === ""}>
-            {submitting ? "Queuing…" : "Queue"}
-          </button>
-          <button type="button" onClick={() => setShowForm(false)} disabled={submitting}>
-            Cancel
-          </button>
+          <div className="row">
+            <input
+              className="field"
+              placeholder="Demo URL (.dem or .dem.bz2)"
+              value={demoUrl}
+              onChange={(e) => setDemoUrl(e.target.value)}
+            />
+            <button className="btn btn-small" type="submit" disabled={submitting || demoUrl.trim() === ""}>
+              {submitting ? "Queuing…" : "Queue"}
+            </button>
+            <button
+              className="btn btn-secondary btn-small"
+              type="button"
+              onClick={() => setShowForm(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
           </div>
         </form>
       )}
 
-      {error && <p style={{ color: "crimson", fontSize: "0.9rem" }}>{error}</p>}
+      {error && <p className="small error">{error}</p>}
 
       {/* Valve expires demos, so a failure here is usually "too old" rather
           than anything broken. */}
-      {status === "failed" && analysis?.error && (
-        <p style={{ color: "crimson", fontSize: "0.85rem", marginBottom: 0 }}>{analysis.error}</p>
-      )}
+      {status === "failed" && analysis?.error && <p className="small error">{analysis.error}</p>}
 
       {status === "done" && analysis && analysis.highlights.length > 0 && (
-        <ol style={{ marginTop: "0.75rem", marginBottom: 0, fontSize: "0.9rem" }}>
+        <ol className="highlights">
           {analysis.highlights.map((h, i) => (
-            <li key={`${h.kind}-${h.round}-${h.start_s}-${i}`}>
-              <strong>{KIND_LABELS[h.kind] ?? h.kind}</strong> — round {h.round}, {formatClock(h.start_s)}–
-              {formatClock(h.end_s)}
+            <li className="highlight" key={`${h.kind}-${h.round}-${h.start_s}-${i}`}>
+              <span>
+                <span className="highlight-kind">{KIND_LABELS[h.kind] ?? h.kind}</span>
+                <span className="muted"> · round {h.round}</span>
+              </span>
+              <span className="muted mono">
+                {formatClock(h.start_s)}–{formatClock(h.end_s)}
+              </span>
             </li>
           ))}
         </ol>
       )}
 
       {status === "done" && analysis?.highlights.length === 0 && (
-        <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: 0 }}>
+        <p className="small muted" style={{ marginBottom: 0 }}>
           Parsed successfully, but nothing met the highlight thresholds.
         </p>
       )}
@@ -358,8 +394,4 @@ function formatClock(seconds: number): string {
   const mins = Math.floor(total / 60);
   const secs = total % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return <div style={{ textAlign: "center", marginTop: "4rem", fontFamily: "system-ui, sans-serif" }}>{children}</div>;
 }
