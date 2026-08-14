@@ -30,7 +30,11 @@ services:
     # No ports on purpose: reachable only from Caddy over the compose
     # network. Publishing it would expose an unencrypted second way in.
     labels:
-      com.centurylinklabs.watchtower.enable: "true"
+      # Opt in to auto-update. digest matters because the tag is :latest,
+      # whose name never changes — only the digest behind it does, so there
+      # is no version number for WUD to compare.
+      wud.watch: "true"
+      wud.watch.digest: "true"
 
   backend:
     image: ghcr.io/ferencovonmatterhorn/fragvault-backend:latest
@@ -40,29 +44,40 @@ services:
     volumes:
       - fragvault_data:/data
     labels:
-      com.centurylinklabs.watchtower.enable: "true"
+      wud.watch: "true"
+      wud.watch.digest: "true"
 
-  # Polls ghcr.io and redeploys the two application containers when a new
-  # :latest is published, so a merge to main reaches the VM without an SSH
-  # session.
+  # What's Up Docker: watches ghcr.io and recreates the two application
+  # containers when a new image is published, so a merge to main reaches the
+  # VM without an SSH session.
   #
-  # --label-enable means it only touches containers that opt in with the
-  # label above. Caddy is deliberately left out: it holds the certificates
-  # and is the only thing listening on 443, so it should not restart
-  # unattended for a routine base-image bump.
+  # This replaced Watchtower, whose upstream (containrrr/watchtower) is
+  # archived and shipped a Docker API client so old that current daemons
+  # refuse it outright ("client version 1.25 is too old").
   #
-  # --cleanup deletes the superseded image after each update. Without it the
-  # 30 GB OS disk slowly fills with every build ever deployed.
-  watchtower:
-    image: containrrr/watchtower
+  # Pinned to a major tag rather than :latest — an auto-updater that silently
+  # updates itself is the one container where a surprise is least welcome.
+  wud:
+    image: getwud/wud:8
     restart: unless-stopped
-    command: --label-enable --cleanup --interval 300
+    environment:
+      # Watch nothing unless it opts in via wud.watch below. Caddy stays out
+      # deliberately: it holds the certificates and is the only thing
+      # listening on 443, so it should not restart unattended.
+      WUD_WATCHER_LOCAL_WATCHBYDEFAULT: "false"
+      WUD_WATCHER_LOCAL_CRON: "*/5 * * * *"
+      # Apply updates rather than only reporting them, and delete the
+      # superseded image afterwards — without pruning, every build ever
+      # deployed accumulates on a 30 GB disk.
+      WUD_TRIGGER_DOCKER_LOCAL_AUTO: "true"
+      WUD_TRIGGER_DOCKER_LOCAL_PRUNE: "true"
     volumes:
       # Root-equivalent access to the host: anything that can talk to this
-      # socket can start a privileged container. That is inherent to how
-      # Watchtower works, and the reason it is scoped by label rather than
-      # left to update everything.
+      # socket can start a privileged container. That is inherent to any
+      # auto-updater, and the reason watching is opt-in per container.
       - /var/run/docker.sock:/var/run/docker.sock
+    # WUD serves a web UI on 3000. Deliberately not published — it would be a
+    # second, unauthenticated way into the host's Docker socket.
 
 volumes:
   # Issued certificates and the ACME account key. Losing this means Caddy
