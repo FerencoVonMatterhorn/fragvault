@@ -108,6 +108,57 @@ type getPlayerSummariesResponse struct {
 	} `json:"response"`
 }
 
+// GetPlayerSummaries fetches public profiles for many steamids in one call.
+//
+// Used to put faces on the scoreboard. Steam accepts up to 100 ids per
+// request, which is well past the ten in a match, so this is one round trip
+// per analysis rather than one per player.
+//
+// Returns what it found: a player whose profile is unavailable is simply
+// absent from the map rather than an error, since a missing avatar is not a
+// reason to fail an analysis.
+func (c *Client) GetPlayerSummaries(steamIDs []string) (map[string]PlayerSummary, error) {
+	out := map[string]PlayerSummary{}
+	if len(steamIDs) == 0 {
+		return out, nil
+	}
+
+	const batchSize = 100
+	for start := 0; start < len(steamIDs); start += batchSize {
+		end := min(start+batchSize, len(steamIDs))
+
+		q := url.Values{
+			"key":      {c.webAPIKey},
+			"steamids": {strings.Join(steamIDs[start:end], ",")},
+		}
+		endpoint := "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?" + q.Encode()
+
+		resp, err := c.httpClient.Get(endpoint)
+		if err != nil {
+			return out, fmt.Errorf("calling GetPlayerSummaries: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return out, fmt.Errorf("GetPlayerSummaries returned %d: %s", resp.StatusCode, string(body))
+		}
+
+		var parsed getPlayerSummariesResponse
+		err = json.NewDecoder(resp.Body).Decode(&parsed)
+		resp.Body.Close()
+		if err != nil {
+			return out, fmt.Errorf("decoding GetPlayerSummaries response: %w", err)
+		}
+
+		for _, p := range parsed.Response.Players {
+			out[p.SteamID] = p
+		}
+	}
+
+	return out, nil
+}
+
 // GetPlayerSummary fetches the public profile (display name, avatar) for a
 // steamid64 via the Steam Web API.
 func (c *Client) GetPlayerSummary(steamID64 string) (*PlayerSummary, error) {

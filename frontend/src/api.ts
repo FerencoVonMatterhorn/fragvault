@@ -42,11 +42,33 @@ export interface Highlight {
 /** "none" means nobody has asked for this match to be analysed yet. */
 export type AnalysisStatus = "none" | "pending" | "running" | "done" | "failed";
 
+export interface ScoreboardRow {
+  steam_id: string;
+  name: string;
+  /** Absent when the player's Steam profile couldn't be read. */
+  avatar_url?: string;
+  /** CS2 team ids: 2 = terrorists, 3 = counter-terrorists. */
+  team: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  mvps: number;
+  damage: number;
+  headshots: number;
+  rounds: number;
+  /** Derived server-side so it always agrees with the totals beside it. */
+  adr: number;
+  headshot_pct: number;
+}
+
 export interface Analysis {
   share_code: string;
   status: AnalysisStatus;
   error?: string;
   map_name?: string;
+  team_a_score: number;
+  team_b_score: number;
+  scoreboard: ScoreboardRow[];
   highlights: Highlight[];
 }
 

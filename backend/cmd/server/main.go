@@ -19,6 +19,26 @@ import (
 	"github.com/fragvault/fragvault/backend/internal/steamauth"
 )
 
+// steamAvatars adapts the Steam client to what the analysis worker needs,
+// which is only "these ids, please" — the worker has no business knowing
+// about profile summaries.
+type steamAvatars struct {
+	client *steamauth.Client
+}
+
+func (s steamAvatars) AvatarsFor(steamIDs []string) (map[string]string, error) {
+	summaries, err := s.client.GetPlayerSummaries(steamIDs)
+	out := make(map[string]string, len(summaries))
+	for id, summary := range summaries {
+		if summary.AvatarFull != "" {
+			out[id] = summary.AvatarFull
+		}
+	}
+	// Partial results are returned alongside the error on purpose: some
+	// avatars beat none.
+	return out, err
+}
+
 func requireEnv(name string) string {
 	v := os.Getenv(name)
 	if v == "" {
@@ -78,7 +98,7 @@ func main() {
 	// server along with them.
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
-	go demos.NewWorker(store, envOr("DEMO_TMP_DIR", os.TempDir())).Run(workerCtx)
+	go demos.NewWorker(store, steamAvatars{steamClient}, envOr("DEMO_TMP_DIR", os.TempDir())).Run(workerCtx)
 
 	mux := http.NewServeMux()
 

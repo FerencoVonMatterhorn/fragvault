@@ -20,6 +20,15 @@ type Result struct {
 	TickRate   float64
 	Duration   float64
 	Highlights []Highlight
+	Players    []PlayerStat
+	TeamAScore int
+	TeamBScore int
+}
+
+// Avatars resolves steam ids to avatar URLs. Optional: a worker without one
+// simply produces a scoreboard without pictures.
+type Avatars interface {
+	AvatarsFor(steamIDs []string) (map[string]string, error)
 }
 
 // Queue is the persistence the worker needs. Defined here, implemented by the
@@ -42,14 +51,16 @@ type Queue interface {
 // One job at a time keeps the site responsive while analysis is slow.
 type Worker struct {
 	queue Queue
+	// Optional; nil means scoreboards without avatars.
+	avatars Avatars
 	// Where demos are downloaded to. They are deleted after parsing.
 	tmpDir string
 	// How long to wait after finding nothing to do.
 	idleInterval time.Duration
 }
 
-func NewWorker(q Queue, tmpDir string) *Worker {
-	return &Worker{queue: q, tmpDir: tmpDir, idleInterval: 5 * time.Second}
+func NewWorker(q Queue, avatars Avatars, tmpDir string) *Worker {
+	return &Worker{queue: q, avatars: avatars, tmpDir: tmpDir, idleInterval: 5 * time.Second}
 }
 
 // Run processes jobs until ctx is cancelled.
@@ -118,12 +129,44 @@ func (w *Worker) analyse(ctx context.Context, job Job) (Result, error) {
 		return Result{}, err
 	}
 
+	w.addAvatars(parsed.Players)
+
 	return Result{
 		MapName:    parsed.MapName,
 		TickRate:   parsed.TickRate,
 		Duration:   parsed.Duration,
 		Highlights: Detect(parsed),
+		Players:    parsed.Players,
+		TeamAScore: parsed.TeamAScore,
+		TeamBScore: parsed.TeamBScore,
 	}, nil
+}
+
+// addAvatars fills in avatar URLs in place.
+//
+// Best effort on purpose: a missing avatar is a cosmetic gap, and failing an
+// analysis that already cost minutes of CPU because Steam's profile API had a
+// bad minute would be a poor trade.
+func (w *Worker) addAvatars(players []PlayerStat) {
+	if w.avatars == nil || len(players) == 0 {
+		return
+	}
+
+	ids := make([]string, 0, len(players))
+	for _, p := range players {
+		ids = append(ids, p.SteamID)
+	}
+
+	found, err := w.avatars.AvatarsFor(ids)
+	if err != nil {
+		log.Printf("warning: could not fetch avatars: %v", err)
+		// Whatever came back before the error is still worth using.
+	}
+	for i := range players {
+		if url, ok := found[players[i].SteamID]; ok {
+			players[i].AvatarURL = url
+		}
+	}
 }
 
 // sleep reports false if the context was cancelled while waiting.

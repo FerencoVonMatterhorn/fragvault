@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, Route, Routes } from "react-router-dom";
 import {
   getMe,
   getMatches,
@@ -12,6 +13,7 @@ import {
   type Match,
   type Analysis,
 } from "./api";
+import MatchPage from "./MatchPage";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -44,18 +46,37 @@ export default function App() {
   return (
     <>
       <header className="masthead">
-        <p className="masthead-brand">FragVault</p>
+        <Link to="/" className="masthead-brand">
+          FragVault
+        </Link>
         {me && <SignedInAs me={me} onLoggedOut={() => setMe(null)} />}
       </header>
 
       <main className="page">
-        {me ? (
-          <SignedIn offline={offline} />
-        ) : (
-          <SignedOut backendOffline={offline} />
-        )}
+        <Routes>
+          <Route
+            path="/"
+            element={me ? <SignedIn offline={offline} /> : <SignedOut backendOffline={offline} />}
+          />
+          {/* Signed out on a deep link: show the sign-in page rather than an
+              empty match, since every route below needs a session anyway. */}
+          <Route
+            path="/match/:shareCode"
+            element={me ? <MatchPage me={me} /> : <SignedOut backendOffline={offline} />}
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </main>
     </>
+  );
+}
+
+function NotFound() {
+  return (
+    <div className="centered">
+      <p>That page doesn't exist.</p>
+      <Link to="/">Back to your matches</Link>
+    </div>
   );
 }
 
@@ -234,13 +255,6 @@ function MatchList() {
   );
 }
 
-const KIND_LABELS: Record<string, string> = {
-  multi_kill: "Multi-kill",
-  clutch: "Clutch",
-  opening_duel: "Opening duel",
-  defuse: "Defuse",
-};
-
 function MatchRow({ match }: { match: Match }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [demoUrl, setDemoUrl] = useState("");
@@ -322,10 +336,13 @@ function MatchRow({ match }: { match: Match }) {
             </button>
           )}
           {working && <span className="status">Analysing…</span>}
+          {/* The detail page is where the scoreboard and highlights live, so
+              a finished analysis is a link rather than an inline dump. */}
           {status === "done" && (
-            <span className="status status-done">
-              {analysis?.highlights.length ?? 0} highlight{(analysis?.highlights.length ?? 0) === 1 ? "" : "s"}
-            </span>
+            <Link to={`/match/${encodeURIComponent(match.share_code)}`} className="small">
+              {analysis?.highlights.length ?? 0} highlight
+              {(analysis?.highlights.length ?? 0) === 1 ? "" : "s"} ›
+            </Link>
           )}
           {status === "failed" && <span className="status status-failed">Unavailable</span>}
         </div>
@@ -363,35 +380,6 @@ function MatchRow({ match }: { match: Match }) {
       {/* Valve expires demos, so a failure here is usually "too old" rather
           than anything broken. */}
       {status === "failed" && analysis?.error && <p className="small error">{analysis.error}</p>}
-
-      {status === "done" && analysis && analysis.highlights.length > 0 && (
-        <ol className="highlights">
-          {analysis.highlights.map((h, i) => (
-            <li className="highlight" key={`${h.kind}-${h.round}-${h.start_s}-${i}`}>
-              <span>
-                <span className="highlight-kind">{KIND_LABELS[h.kind] ?? h.kind}</span>
-                <span className="muted"> · round {h.round}</span>
-              </span>
-              <span className="muted mono">
-                {formatClock(h.start_s)}–{formatClock(h.end_s)}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {status === "done" && analysis?.highlights.length === 0 && (
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          Parsed successfully, but nothing met the highlight thresholds.
-        </p>
-      )}
     </li>
   );
-}
-
-function formatClock(seconds: number): string {
-  const total = Math.max(0, Math.round(seconds));
-  const mins = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

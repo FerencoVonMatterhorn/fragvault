@@ -3,6 +3,7 @@ package demos
 import (
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -32,6 +33,8 @@ func Parse(r io.Reader) (Parsed, error) {
 		bombPlanted    bool
 		// One clutch per player per round: the situation begins once.
 		clutchSeen = map[string]bool{}
+		// Last known scoreboard row per player, keyed by steam ID.
+		stats = map[string]*PlayerStat{}
 	)
 
 	now := func() float64 { return p.CurrentTime().Seconds() }
@@ -61,6 +64,10 @@ func Parse(r io.Reader) (Parsed, error) {
 			EndTime:    now(),
 			WinnerTeam: int(e.Winner),
 		})
+		// Snapshot every round rather than only at the end: a player who
+		// disconnects before the final round would otherwise vanish from the
+		// scoreboard entirely, taking their stats with them.
+		snapshotPlayers(p.GameState(), stats, currentRound)
 	})
 
 	p.RegisterEventHandler(func(events.BombPlanted) {
@@ -136,9 +143,68 @@ func Parse(r io.Reader) (Parsed, error) {
 		return out, fmt.Errorf("parsing demo: %w", err)
 	}
 
+	// Final snapshot: the last round's stats land after its RoundEnd, and a
+	// demo may simply stop without one.
+	snapshotPlayers(p.GameState(), stats, currentRound)
+	out.Players = finaliseStats(stats, out.Kills)
+	out.TeamAScore = p.GameState().TeamTerrorists().Score()
+	out.TeamBScore = p.GameState().TeamCounterTerrorists().Score()
+
 	out.TickRate = p.TickRate()
 	out.Duration = now()
 	return out, nil
+}
+
+// snapshotPlayers records each connected player's current scoreboard row,
+// overwriting whatever was there. Last write wins, which is what makes a
+// disconnect harmless.
+func snapshotPlayers(gs demoinfocs.GameState, stats map[string]*PlayerStat, rounds int) {
+	for _, pl := range gs.Participants().Playing() {
+		if pl == nil {
+			continue
+		}
+		id := steamID(pl)
+		if id == "" || id == "0" {
+			continue // bots and unresolved entities
+		}
+		stats[id] = &PlayerStat{
+			SteamID: id,
+			Name:    pl.Name,
+			Team:    int(pl.Team),
+			Kills:   pl.Kills(),
+			Deaths:  pl.Deaths(),
+			Assists: pl.Assists(),
+			MVPs:    pl.MVPs(),
+			Damage:  pl.TotalDamage(),
+			Rounds:  rounds,
+		}
+	}
+}
+
+// finaliseStats folds in headshot counts, which the scoreboard doesn't track
+// but the kill feed does.
+func finaliseStats(stats map[string]*PlayerStat, kills []Kill) []PlayerStat {
+	headshots := map[string]int{}
+	for _, k := range kills {
+		if k.IsHeadshot && k.KillerSteamID != "" && k.KillerTeam != k.VictimTeam {
+			headshots[k.KillerSteamID]++
+		}
+	}
+
+	out := make([]PlayerStat, 0, len(stats))
+	for id, s := range stats {
+		s.Headshots = headshots[id]
+		out = append(out, *s)
+	}
+	// Scoreboard order, and stable for players on equal kills so repeated
+	// parses of one demo produce identical output.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Kills != out[j].Kills {
+			return out[i].Kills > out[j].Kills
+		}
+		return out[i].SteamID < out[j].SteamID
+	})
+	return out
 }
 
 func steamID(p *common.Player) string {
