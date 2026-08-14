@@ -14,6 +14,7 @@ import {
   type Analysis,
 } from "./api";
 import MatchPage from "./MatchPage";
+import { mapDisplayName } from "./maps";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -325,7 +326,7 @@ function MatchRow({ match }: { match: Match }) {
               month: "short",
               year: "numeric",
             })}
-            {analysis?.map_name && ` · ${analysis.map_name}`}
+            {analysis?.map_name && ` · ${mapDisplayName(analysis.map_name)}`}
           </div>
         </div>
 

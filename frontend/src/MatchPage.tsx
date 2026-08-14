@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getAnalysis, type Analysis, type Me, type ScoreboardRow } from "./api";
 import { HighlightList } from "./Highlights";
+import { mapDisplayName } from "./maps";
 
 // CS2 team ids.
 const TEAM_T = 2;
@@ -51,7 +52,7 @@ export default function MatchPage({ me }: { me: Me }) {
 
       <header style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.012em", margin: "0 0 6px" }}>
-          {analysis?.map_name || "Match"}
+          {mapDisplayName(analysis?.map_name) || "Match"}
         </h1>
         <p className="small muted mono" style={{ margin: 0 }}>
           {shareCode}
