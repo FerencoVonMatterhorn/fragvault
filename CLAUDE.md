@@ -43,13 +43,23 @@ secrets in this file or any other.
 - `/api` and `/auth` must stay same-origin with the app: the frontend sends
   cookies with `credentials: "include"`, and Steam OpenID redirects to
   `BASE_URL`.
-- **The backend uses the Go standard library only.** No third-party
-  dependencies (there is no `go.sum`). Keep it that way.
+- **Third-party Go dependencies are fine.** The old stdlib-only rule came
+  from a build sandbox that couldn't reach package registries; that
+  constraint is gone. `pgx` and `demoinfocs-golang` are in use. Still prefer
+  the stdlib where it's genuinely enough — auth, sessions and HTTP handling
+  have no reason to grow dependencies.
+- **Persistence is PostgreSQL**, in a container, with migrations applied at
+  boot from `backend/internal/db/migrations` by a small embedded runner.
+  See `docs/adr-002-database.md`. The JSON-file store is gone; its importer
+  runs once and refuses if the database already has players.
+- Re-analysis is prevented by `UNIQUE (share_code, parser_version)` on
+  `demo_analyses`. Bumping `parser_version` is the deliberate way to force
+  demos to be parsed again.
 - Secrets live in `/opt/fragvault/.env` **on the VM only**. `deploy/.env.example`
   is the committed template.
 - Deployment is manual: `docker compose pull && docker compose up -d`.
-- `docs/` was deleted deliberately. Don't recreate it; put durable notes here
-  or in the README.
+- `docs/` exists again, but **only for ADRs**. Everything else durable goes
+  here or in the README.
 
 ## Behaviour worth knowing
 

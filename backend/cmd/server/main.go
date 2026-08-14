@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/fragvault/fragvault/backend/internal/db"
 	"github.com/fragvault/fragvault/backend/internal/matches"
 	"github.com/fragvault/fragvault/backend/internal/session"
 	"github.com/fragvault/fragvault/backend/internal/steamauth"
@@ -25,15 +27,38 @@ func requireEnv(name string) string {
 
 func main() {
 	addr := envOr("LISTEN_ADDR", ":8080")
-	storePath := envOr("STORE_PATH", "./fragvault-data.json")
+	// Only still read to migrate it into Postgres on first boot; nothing
+	// writes to this file any more.
+	legacyStorePath := envOr("STORE_PATH", "./fragvault-data.json")
+	databaseURL := requireEnv("DATABASE_URL")
 	baseURL := requireEnv("BASE_URL") // e.g. https://fragvault.gg (or http://<vm-ip> for smoke testing)
 	steamWebAPIKey := requireEnv("STEAM_WEB_API_KEY")
 	sessionSecretHex := requireEnv("SESSION_SECRET") // random 32+ byte secret, hex or any string
 	devInsecureCookie := os.Getenv("DEV_INSECURE_COOKIE") == "true"
 
+	ctx := context.Background()
+
+	pool, err := db.Connect(ctx, databaseURL)
+	if err != nil {
+		log.Fatalf("connecting to database: %v", err)
+	}
+	defer pool.Close()
+
+	if err := db.Migrate(ctx, pool); err != nil {
+		log.Fatalf("running migrations: %v", err)
+	}
+
+	imported, err := db.ImportLegacyJSON(ctx, pool, legacyStorePath)
+	if err != nil {
+		log.Fatalf("importing legacy store: %v", err)
+	}
+	if imported > 0 {
+		log.Printf("imported %d player(s) from the legacy JSON store at %s", imported, legacyStorePath)
+	}
+
 	steamClient := steamauth.NewClient(steamWebAPIKey, baseURL+"/auth/steam/callback", baseURL)
 	sessions := session.NewManager([]byte(sessionSecretHex), 30*24*time.Hour, !devInsecureCookie)
-	store := matches.NewStore(storePath)
+	store := db.NewStore(pool)
 	steamAPI := matches.NewSteamAPIClient(steamWebAPIKey)
 
 	mux := http.NewServeMux()
@@ -65,7 +90,7 @@ func main() {
 			persona, avatar = summary.PersonaName, summary.AvatarFull
 		}
 
-		if err := store.UpsertProfile(steamID, persona, avatar); err != nil {
+		if err := store.UpsertProfile(r.Context(), steamID, persona, avatar); err != nil {
 			log.Printf("error: UpsertProfile failed for %s: %v", steamID, err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -123,7 +148,7 @@ func main() {
 			http.Error(w, "starting_share_code doesn't look like a valid sharecode: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := store.SetOnboarding(claims.SteamID, body.AuthCode, body.StartingShareCode); err != nil {
+		if err := store.SetOnboarding(r.Context(), claims.SteamID, body.AuthCode, body.StartingShareCode); err != nil {
 			log.Printf("error: SetOnboarding failed for %s: %v", claims.SteamID, err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
@@ -140,7 +165,7 @@ func main() {
 			return
 		}
 
-		rec, err := store.GetPlayer(claims.SteamID)
+		rec, err := store.GetPlayer(r.Context(), claims.SteamID)
 		if err != nil {
 			log.Printf("error: GetPlayer failed for %s: %v", claims.SteamID, err)
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -153,7 +178,7 @@ func main() {
 
 		newestCode, found, derr := steamAPI.DiscoverNewMatches(claims.SteamID, rec.AuthCode, rec.LatestKnownCode)
 		if len(found) > 0 {
-			if serr := store.AppendMatches(claims.SteamID, found, newestCode); serr != nil {
+			if serr := store.AppendMatches(r.Context(), claims.SteamID, found, newestCode); serr != nil {
 				log.Printf("error: AppendMatches failed for %s: %v", claims.SteamID, serr)
 				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
@@ -165,7 +190,7 @@ func main() {
 			log.Printf("warning: DiscoverNewMatches partial failure for %s: %v", claims.SteamID, derr)
 		}
 
-		rec, err = store.GetPlayer(claims.SteamID)
+		rec, err = store.GetPlayer(r.Context(), claims.SteamID)
 		if err != nil {
 			log.Printf("error: GetPlayer (post-poll) failed for %s: %v", claims.SteamID, err)
 			http.Error(w, "internal error", http.StatusInternalServerError)

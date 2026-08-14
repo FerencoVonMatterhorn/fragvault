@@ -41,11 +41,42 @@ services:
     restart: unless-stopped
     # STEAM_WEB_API_KEY, SESSION_SECRET and BASE_URL. Never committed.
     env_file: .env
+    environment:
+      # sslmode=disable is deliberate: this connection never leaves the
+      # compose network, and TLS between two containers on the same host buys
+      # nothing but certificate management.
+      DATABASE_URL: postgres://fragvault:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/fragvault?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
+      # Still mounted for the one-time import of the old JSON store. Nothing
+      # writes here any more.
       - fragvault_data:/data
     labels:
       wud.watch: "true"
       wud.watch.digest: "true"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    # Deliberately not labelled for WUD. A database that restarts itself
+    # unattended on a new image, mid-write, is not a trade worth making for
+    # a patch release — this one gets updated by hand.
+    environment:
+      POSTGRES_DB: fragvault
+      POSTGRES_USER: fragvault
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # The backend waits on this rather than racing it. It also retries on its
+    # own, but starting in the right order keeps the logs readable.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fragvault -d fragvault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # What's Up Docker: watches ghcr.io and recreates the two application
   # containers when a new image is published, so a merge to main reaches the
@@ -85,7 +116,9 @@ volumes:
   # limits are low enough to lock you out for a week if that repeats.
   caddy_data:
   caddy_config:
-  # Onboarded users, their Valve auth codes, and discovered matches. This is
-  # the only stateful thing in the deployment — back it up before rebuilding
-  # the VM.
+  # The old JSON store, kept only so the one-time import can find it.
   fragvault_data:
+  # Onboarded users, their Valve auth codes, discovered matches and analysis
+  # results. The stateful thing in this deployment — back it up before
+  # rebuilding the VM:  docker compose exec -T postgres pg_dump -U fragvault fragvault > backup.sql
+  postgres_data:

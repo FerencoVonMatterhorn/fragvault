@@ -17,3 +17,9 @@ Dockerfile text eol=lf
 *.template text eol=lf
 Caddyfile text eol=lf
 .env.example text eol=lf
+
+# gofmt treats CRLF as unformatted, so a Windows checkout fails `gofmt -l`
+# locally even though CI (which checks out LF) is perfectly happy. Pinning
+# these makes the local check mean the same thing as the CI one.
+*.go text eol=lf
+*.sql text eol=lf

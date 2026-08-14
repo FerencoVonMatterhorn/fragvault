@@ -2,13 +2,11 @@
 # frontend/Dockerfile: nothing from the build stage survives into the runtime
 # image except the binary itself.
 
-FROM golang:1.24-alpine AS build
+# Must be >= the `go` directive in go.mod, which pgx pushed to 1.25.
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 
-# go.mod is the entire dependency story — this backend deliberately has no
-# third-party dependencies (there is no go.sum), so this is a formality that
-# keeps the layer cached rather than a real download.
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
