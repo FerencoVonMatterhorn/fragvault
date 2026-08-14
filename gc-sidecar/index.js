@@ -98,10 +98,13 @@ client.on("steamGuard", (domain, callback, lastCodeWrong) => {
   // Nothing here can answer this. Failing loudly beats hanging forever
   // pretending to be healthy.
   console.error(
-    `Steam Guard code required${domain ? ` (email ${domain})` : ""}${
-      lastCodeWrong ? " — previous code was wrong" : ""
-    }. Set STEAM_SHARED_SECRET, or log in once interactively to produce a refresh token.`
+    `Steam Guard code required${domain ? ` (emailed to ${domain})` : ""}${
+      lastCodeWrong ? " — the previous code was wrong" : ""
+    }.`
   );
+  console.error("Log in once interactively to produce a refresh token:");
+  console.error("  docker compose run --rm -it gc-sidecar node login.js");
+  console.error("Accounts with a mobile authenticator can set STEAM_SHARED_SECRET instead.");
   process.exit(1);
 });
 

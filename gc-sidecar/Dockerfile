@@ -9,7 +9,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY index.js ./
+# login.js is the one-time interactive login for accounts on email Steam
+# Guard; it ships in the image so it can be run against the same volume:
+#   docker compose run --rm -it gc-sidecar node login.js
+COPY index.js login.js ./
 
 # The refresh token lives here, so Steam Guard is a one-time setup step
 # rather than something a restart drags a human into.

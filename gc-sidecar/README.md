@@ -28,16 +28,29 @@ The account must own CS2 (free) and be able to reach the GC.
 
 ### First login
 
-Steam Guard needs answering once. Either:
+Steam Guard has to be answered once, and how depends on which kind the account
+uses.
 
-- **Preferred:** set `STEAM_SHARED_SECRET` (the TOTP shared secret from the
-  mobile authenticator). The container then reconnects unattended, including
-  after a restart at an inconvenient hour.
-- Or log in once somewhere interactive to obtain a refresh token and pass it as
-  `STEAM_REFRESH_TOKEN`.
+**Email Steam Guard** (the default for a new account) cannot be automated —
+there is no secret to hold. Log in once interactively:
 
-After a successful login the refresh token is written to `/data/refresh-token`
-(mode 600, on a volume), so subsequent starts need no password at all.
+```sh
+docker compose run --rm -it gc-sidecar node login.js
+```
+
+It prompts for the emailed code, writes the refresh token to
+`/data/refresh-token` (mode 600, on a volume), and exits. Start the service
+normally afterwards and it uses that token — no password, no prompt, including
+after restarts. The `-it` is required: without a TTY there is nothing to type
+into. Email codes expire quickly, so have the inbox open.
+
+**Mobile authenticator:** set `STEAM_SHARED_SECRET` to its TOTP shared secret
+instead and skip the interactive step entirely. This is the better end state
+for an unattended service, since it can also re-authenticate from scratch
+rather than depending on a stored token.
+
+Either way, `STEAM_REFRESH_TOKEN` can supply a token directly if you would
+rather not keep one on the volume.
 
 ### Environment
 
