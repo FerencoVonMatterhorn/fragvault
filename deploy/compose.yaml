@@ -29,6 +29,8 @@ services:
     restart: unless-stopped
     # No ports on purpose: reachable only from Caddy over the compose
     # network. Publishing it would expose an unencrypted second way in.
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
 
   backend:
     image: ghcr.io/ferencovonmatterhorn/fragvault-backend:latest
@@ -37,6 +39,30 @@ services:
     env_file: .env
     volumes:
       - fragvault_data:/data
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Polls ghcr.io and redeploys the two application containers when a new
+  # :latest is published, so a merge to main reaches the VM without an SSH
+  # session.
+  #
+  # --label-enable means it only touches containers that opt in with the
+  # label above. Caddy is deliberately left out: it holds the certificates
+  # and is the only thing listening on 443, so it should not restart
+  # unattended for a routine base-image bump.
+  #
+  # --cleanup deletes the superseded image after each update. Without it the
+  # 30 GB OS disk slowly fills with every build ever deployed.
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    command: --label-enable --cleanup --interval 300
+    volumes:
+      # Root-equivalent access to the host: anything that can talk to this
+      # socket can start a privileged container. That is inherent to how
+      # Watchtower works, and the reason it is scoped by label rather than
+      # left to update everything.
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   # Issued certificates and the ACME account key. Losing this means Caddy
