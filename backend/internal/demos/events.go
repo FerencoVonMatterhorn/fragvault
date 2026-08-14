@@ -7,15 +7,22 @@
 // is unit-testable without a several-hundred-megabyte demo fixture.
 package demos
 
-// ParserVersion is the cache key for analysis results. demo_analyses is
-// UNIQUE (share_code, parser_version), so bumping this is how a demo gets
-// re-parsed after the detectors change. Bump it whenever a change would
-// produce different highlights — or, as in version 2, different data — for
-// the same demo.
+// ParserVersion says how events were pulled out of the demo. Bumping it
+// means the demo itself has to be read again, which is expensive and — since
+// Valve expires demos after a few weeks — sometimes impossible. Bump it only
+// when the extracted events would genuinely differ.
 //
 // 2: added the scoreboard (per-player stats and team scores).
 // 3: kept per-round results, which the parser had always discarded.
-const ParserVersion = 3
+// 4: kept the kills, clutches and defuses themselves.
+const ParserVersion = 4
+
+// DetectorVersion says how highlights were derived from those events.
+// Bumping it re-derives from what is already stored: no download, no parse,
+// and it works on matches whose demos expired long ago.
+//
+// This is the one to bump when a detector's rules change.
+const DetectorVersion = 1
 
 // Highlight kinds. Stored as text so adding one is code, not a migration.
 const (

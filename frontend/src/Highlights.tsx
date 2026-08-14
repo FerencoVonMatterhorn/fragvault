@@ -1,4 +1,4 @@
-import type { Highlight } from "./api";
+import type { Highlight, ScoreboardRow } from "./api";
 
 // Named the way players name them, not the way the parser stores them.
 const KIND_LABELS: Record<string, string> = {
@@ -38,18 +38,35 @@ function detail(h: Highlight): string {
 }
 
 /** Shared so the match list and the detail page can't drift apart. */
-export function HighlightList({ highlights }: { highlights: Highlight[] }) {
+export function HighlightList({
+  highlights,
+  showPlayer = false,
+  scoreboard = [],
+  empty = "Parsed cleanly, but nothing crossed the highlight thresholds.",
+}: {
+  highlights: Highlight[];
+  /** Names the player, for when the list isn't just the viewer's own. */
+  showPlayer?: boolean;
+  scoreboard?: ScoreboardRow[];
+  empty?: string;
+}) {
   if (highlights.length === 0) {
-    return <p className="small muted">Parsed cleanly, but nothing crossed the highlight thresholds.</p>;
+    return <p className="small muted">{empty}</p>;
   }
+
+  const nameOf = (steamId: string) =>
+    scoreboard.find((r) => r.steam_id === steamId)?.name ?? steamId;
 
   return (
     <ol className="highlights">
       {highlights.map((h, i) => (
-        <li className="highlight" key={`${h.kind}-${h.round}-${h.start_s}-${i}`}>
+        <li className="highlight" key={`${h.steam_id}-${h.kind}-${h.round}-${h.start_s}-${i}`}>
           <span className="highlight-kind">{KIND_LABELS[h.kind] ?? h.kind}</span>
           <span className="highlight-round">R{h.round}</span>
-          <span className="small muted">{detail(h)}</span>
+          <span className="small muted">
+            {showPlayer ? nameOf(h.steam_id) : detail(h)}
+            {showPlayer && detail(h) ? <span className="muted"> · {detail(h)}</span> : null}
+          </span>
           <span className="mono caption muted">
             {formatClock(h.start_s)}–{formatClock(h.end_s)}
           </span>

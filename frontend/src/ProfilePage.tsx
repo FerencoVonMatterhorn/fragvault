@@ -53,15 +53,27 @@ export default function ProfilePage({ me, onLoggedOut }: { me: Me; onLoggedOut: 
         </p>
       </div>
 
+      {/* Setup lives here rather than in the navigation: it's a one-time task,
+          but the Valve auth code expires, so it still has to be findable. */}
+      <div className="section">
+        <h2>Match history connection</h2>
+        <p className="small muted">
+          FragVault reads your matches using a Valve authentication code you provide. It expires periodically, and
+          discovery stops until you replace it.
+        </p>
+        <div className="row" style={{ marginTop: 12 }}>
+          <Link to="/setup" className="btn btn-secondary btn-small">
+            Update connection
+          </Link>
+        </div>
+      </div>
+
       <div className="section">
         <h2>Account</h2>
         <p className="small muted">
           Signing out clears the session cookie on this device. Your connected match history stays connected.
         </p>
         <div className="row" style={{ marginTop: 12 }}>
-          <Link to="/setup" className="btn btn-secondary btn-small">
-            Setup
-          </Link>
           <button className="btn btn-secondary btn-small" onClick={onLoggedOut}>
             Sign out
           </button>

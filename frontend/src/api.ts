@@ -148,6 +148,24 @@ function normalizeAnalysis(a: Analysis): Analysis {
   };
 }
 
+/** One of your moments, with enough context to stand outside its match. */
+export interface BestHighlight {
+  share_code: string;
+  map_name?: string;
+  kind: string;
+  round: number;
+  start_s: number;
+  end_s: number;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+export async function getBestHighlights(): Promise<BestHighlight[]> {
+  const res = await fetch("/api/highlights", { credentials: "include" });
+  const data = await jsonOrThrow<{ highlights: BestHighlight[] }>(res);
+  return data.highlights ?? [];
+}
+
 export async function getAnalysis(shareCode: string): Promise<Analysis> {
   const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analysis`, {
     credentials: "include",

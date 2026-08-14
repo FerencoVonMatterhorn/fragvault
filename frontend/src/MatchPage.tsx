@@ -6,8 +6,8 @@ import { mapDisplayName, mapImageUrl } from "./maps";
 import { RoundTimeline } from "./RoundTimeline";
 
 // CS2 team ids.
-const TEAM_T = 2;
-const TEAM_CT = 3;
+export const TEAM_T = 2;
+export const TEAM_CT = 3;
 
 type Tab = "scoreboard" | "highlights";
 
@@ -19,6 +19,7 @@ export default function MatchPage({ me }: { me: Me }) {
   // A view toggle, not a route: putting it in the URL would mean handling an
   // invalid tab name for no benefit.
   const [tab, setTab] = useState<Tab>("scoreboard");
+  const [showEveryone, setShowEveryone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +45,20 @@ export default function MatchPage({ me }: { me: Me }) {
   const done = analysis?.status === "done";
   const mapImage = mapImageUrl(analysis?.map_name);
 
+  // Detectors run over everyone in the demo, so an enemy's ace is in here
+  // too. This is a product about *your* best plays, so yours are the default
+  // and the rest are opt-in.
+  const mine = analysis?.highlights.filter((h) => h.steam_id === me.steam_id) ?? [];
+  const shown = showEveryone ? (analysis?.highlights ?? []) : mine;
+
+  // Which score is yours. Sides swap at half time, so "13–11" is meaningless
+  // without knowing which side you ended on — and the scoreboard row is the
+  // only thing that says.
+  const myRow = analysis?.scoreboard.find((r) => r.steam_id === me.steam_id);
+  const myScore = myRow?.team === TEAM_T ? analysis?.team_a_score : analysis?.team_b_score;
+  const theirScore = myRow?.team === TEAM_T ? analysis?.team_b_score : analysis?.team_a_score;
+  const oriented = myRow !== undefined && myScore !== undefined && theirScore !== undefined;
+
   return (
     <>
       <p className="section" style={{ marginBottom: 8 }}>
@@ -67,12 +82,33 @@ export default function MatchPage({ me }: { me: Me }) {
 
         {done && (
           <div style={{ marginTop: 18 }}>
-            <p className="scoreline" style={{ margin: "0 0 12px" }}>
-              {analysis.team_a_score}
-              <span className="muted">–</span>
-              {analysis.team_b_score}
+            <p className="scoreline" style={{ margin: "0 0 4px" }}>
+              {oriented ? (
+                <>
+                  {myScore}
+                  <span className="muted">–</span>
+                  {theirScore}
+                </>
+              ) : (
+                <>
+                  {analysis.team_a_score}
+                  <span className="muted">–</span>
+                  {analysis.team_b_score}
+                </>
+              )}
             </p>
-            <RoundTimeline rounds={analysis.rounds} highlights={analysis.highlights} />
+            <p className="caption muted" style={{ margin: "0 0 12px" }}>
+              {oriented
+                ? myScore === theirScore
+                  ? "Draw"
+                  : myScore! > theirScore!
+                    ? "You won"
+                    : "You lost"
+                : "T–CT at the end of the match"}
+            </p>
+            {/* Marks your moments, not everyone's — the strip should answer
+                "where were my good rounds". */}
+            <RoundTimeline rounds={analysis.rounds} highlights={mine} />
           </div>
         )}
       </header>
@@ -98,14 +134,24 @@ export default function MatchPage({ me }: { me: Me }) {
               className={`tab${tab === "highlights" ? " tab-active" : ""}`}
               onClick={() => setTab("highlights")}
             >
-              Highlights <span className="muted">{analysis.highlights.length}</span>
+              Highlights <span className="muted">{mine.length}</span>
             </button>
           </nav>
 
           {tab === "scoreboard" ? (
             <Scoreboard rows={analysis.scoreboard} meSteamId={me.steam_id} />
           ) : (
-            <HighlightList highlights={analysis.highlights} />
+            <>
+              <div className="row" style={{ justifyContent: "space-between", marginBottom: 12 }}>
+                <span className="caption muted">
+                  {showEveryone ? `${analysis.highlights.length} in this match` : `${mine.length} of yours`}
+                </span>
+                <button className="linklike caption" onClick={() => setShowEveryone((v) => !v)}>
+                  {showEveryone ? "Show only mine" : "Show everyone's"}
+                </button>
+              </div>
+              <HighlightList highlights={shown} showPlayer={showEveryone} scoreboard={analysis.scoreboard} />
+            </>
           )}
         </>
       )}

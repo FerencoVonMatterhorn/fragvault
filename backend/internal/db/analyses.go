@@ -251,9 +251,10 @@ func (s *Store) Complete(ctx context.Context, id int64, res demos.Result) error 
 	if _, err := tx.Exec(ctx, `
 		UPDATE demo_analyses
 		SET status = 'done', error = '', map_name = $2, tick_rate = $3, duration_s = $4,
-		    team_a_score = $5, team_b_score = $6, finished_at = now()
+		    team_a_score = $5, team_b_score = $6, detector_version = $7, finished_at = now()
 		WHERE id = $1`,
-		id, res.MapName, res.TickRate, res.Duration, res.TeamAScore, res.TeamBScore); err != nil {
+		id, res.MapName, res.TickRate, res.Duration, res.TeamAScore, res.TeamBScore,
+		demos.DetectorVersion); err != nil {
 		return fmt.Errorf("marking analysis %d done: %w", id, err)
 	}
 
@@ -276,6 +277,48 @@ func (s *Store) Complete(ctx context.Context, id int64, res demos.Result) error 
 			ON CONFLICT (analysis_id, number) DO NOTHING`,
 			id, r.Number, r.WinnerTeam, r.StartTime, r.EndTime); err != nil {
 			return fmt.Errorf("inserting round %d: %w", r.Number, err)
+		}
+	}
+
+	// The events themselves, so a detector change never needs the demo again.
+	for _, tbl := range []string{"match_kills", "match_clutches", "match_defuses"} {
+		if _, err := tx.Exec(ctx, `DELETE FROM `+tbl+` WHERE analysis_id = $1`, id); err != nil {
+			return fmt.Errorf("clearing %s for %d: %w", tbl, id, err)
+		}
+	}
+
+	// CopyFrom rather than a loop: a busy demo has thousands of kills, and
+	// that many round trips is the difference between instant and noticeable.
+	if len(res.Kills) > 0 {
+		if _, err := tx.CopyFrom(ctx,
+			pgx.Identifier{"match_kills"},
+			[]string{"analysis_id", "round", "tick", "time_s", "killer_steam_id", "victim_steam_id",
+				"killer_team", "victim_team", "is_headshot", "weapon"},
+			pgx.CopyFromSlice(len(res.Kills), func(i int) ([]any, error) {
+				k := res.Kills[i]
+				return []any{id, k.Round, k.Tick, k.Time, k.KillerSteamID, k.VictimSteamID,
+					k.KillerTeam, k.VictimTeam, k.IsHeadshot, k.Weapon}, nil
+			}),
+		); err != nil {
+			return fmt.Errorf("inserting kills for %d: %w", id, err)
+		}
+	}
+
+	for _, c := range res.Clutches {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO match_clutches (analysis_id, round, tick, time_s, steam_id, team, enemies_alive)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			id, c.Round, c.Tick, c.Time, c.PlayerSteamID, c.PlayerTeam, c.EnemiesAlive); err != nil {
+			return fmt.Errorf("inserting clutch for %d: %w", id, err)
+		}
+	}
+
+	for _, d := range res.Defuses {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO match_defuses (analysis_id, round, tick, time_s, steam_id, team, time_left_s)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+			id, d.Round, d.Tick, d.Time, d.PlayerSteamID, d.PlayerTeam, d.TimeLeft); err != nil {
+			return fmt.Errorf("inserting defuse for %d: %w", id, err)
 		}
 	}
 
@@ -309,6 +352,152 @@ func (s *Store) Complete(ctx context.Context, id int64, res demos.Result) error 
 	return nil
 }
 
+// ClaimNextRederive takes a finished analysis whose highlights were produced
+// by an older detector, and loads the events needed to recompute them.
+//
+// Marking detector_version as current up front means a crash mid-recompute
+// leaves stale highlights rather than an infinite loop over the same row.
+// Stale highlights are recoverable by bumping the version again; a worker
+// spinning forever is not.
+func (s *Store) ClaimNextRederive(ctx context.Context) (*demos.Rederive, error) {
+	job := &demos.Rederive{}
+	err := s.pool.QueryRow(ctx, `
+		UPDATE demo_analyses
+		SET detector_version = $1
+		WHERE id = (
+			SELECT id FROM demo_analyses
+			WHERE status = 'done' AND detector_version < $1 AND parser_version = $2
+			ORDER BY id
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		)
+		RETURNING id, share_code`,
+		demos.DetectorVersion, demos.ParserVersion).Scan(&job.ID, &job.ShareCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("claiming re-derivation: %w", err)
+	}
+
+	events, err := s.loadEvents(ctx, job.ID)
+	if err != nil {
+		return nil, err
+	}
+	job.Events = events
+	return job, nil
+}
+
+// loadEvents reassembles what the parser originally produced.
+func (s *Store) loadEvents(ctx context.Context, analysisID int64) (demos.Parsed, error) {
+	var p demos.Parsed
+
+	killRows, err := s.pool.Query(ctx, `
+		SELECT round, tick, time_s, killer_steam_id, victim_steam_id, killer_team, victim_team, is_headshot, weapon
+		FROM match_kills WHERE analysis_id = $1 ORDER BY time_s, id`, analysisID)
+	if err != nil {
+		return p, fmt.Errorf("loading kills: %w", err)
+	}
+	for killRows.Next() {
+		var k demos.Kill
+		if err := killRows.Scan(&k.Round, &k.Tick, &k.Time, &k.KillerSteamID, &k.VictimSteamID,
+			&k.KillerTeam, &k.VictimTeam, &k.IsHeadshot, &k.Weapon); err != nil {
+			killRows.Close()
+			return p, fmt.Errorf("scanning kill: %w", err)
+		}
+		p.Kills = append(p.Kills, k)
+	}
+	killRows.Close()
+	if err := killRows.Err(); err != nil {
+		return p, fmt.Errorf("iterating kills: %w", err)
+	}
+
+	roundRows, err := s.pool.Query(ctx, `
+		SELECT number, winner_team, start_s, end_s
+		FROM match_rounds WHERE analysis_id = $1 ORDER BY number`, analysisID)
+	if err != nil {
+		return p, fmt.Errorf("loading rounds: %w", err)
+	}
+	for roundRows.Next() {
+		var r demos.Round
+		if err := roundRows.Scan(&r.Number, &r.WinnerTeam, &r.StartTime, &r.EndTime); err != nil {
+			roundRows.Close()
+			return p, fmt.Errorf("scanning round: %w", err)
+		}
+		p.Rounds = append(p.Rounds, r)
+	}
+	roundRows.Close()
+	if err := roundRows.Err(); err != nil {
+		return p, fmt.Errorf("iterating rounds: %w", err)
+	}
+
+	clutchRows, err := s.pool.Query(ctx, `
+		SELECT round, tick, time_s, steam_id, team, enemies_alive
+		FROM match_clutches WHERE analysis_id = $1 ORDER BY time_s, id`, analysisID)
+	if err != nil {
+		return p, fmt.Errorf("loading clutches: %w", err)
+	}
+	for clutchRows.Next() {
+		var c demos.Clutch
+		if err := clutchRows.Scan(&c.Round, &c.Tick, &c.Time, &c.PlayerSteamID, &c.PlayerTeam, &c.EnemiesAlive); err != nil {
+			clutchRows.Close()
+			return p, fmt.Errorf("scanning clutch: %w", err)
+		}
+		p.Clutches = append(p.Clutches, c)
+	}
+	clutchRows.Close()
+	if err := clutchRows.Err(); err != nil {
+		return p, fmt.Errorf("iterating clutches: %w", err)
+	}
+
+	defuseRows, err := s.pool.Query(ctx, `
+		SELECT round, tick, time_s, steam_id, team, time_left_s
+		FROM match_defuses WHERE analysis_id = $1 ORDER BY time_s, id`, analysisID)
+	if err != nil {
+		return p, fmt.Errorf("loading defuses: %w", err)
+	}
+	for defuseRows.Next() {
+		var d demos.Defuse
+		if err := defuseRows.Scan(&d.Round, &d.Tick, &d.Time, &d.PlayerSteamID, &d.PlayerTeam, &d.TimeLeft); err != nil {
+			defuseRows.Close()
+			return p, fmt.Errorf("scanning defuse: %w", err)
+		}
+		p.Defuses = append(p.Defuses, d)
+	}
+	defuseRows.Close()
+	return p, defuseRows.Err()
+}
+
+// SaveHighlights replaces an analysis's highlights with freshly derived ones.
+func (s *Store) SaveHighlights(ctx context.Context, id int64, highlights []demos.Highlight) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning highlight transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM highlights WHERE analysis_id = $1`, id); err != nil {
+		return fmt.Errorf("clearing highlights for %d: %w", id, err)
+	}
+	for _, h := range highlights {
+		meta, err := json.Marshal(h.Metadata)
+		if err != nil {
+			return fmt.Errorf("encoding highlight metadata: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO highlights
+				(analysis_id, steam_id, kind, round, start_tick, end_tick, start_s, end_s, score, metadata)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			id, h.SteamID, h.Kind, h.Round, h.StartTick, h.EndTick, h.StartS, h.EndS, h.Score, meta); err != nil {
+			return fmt.Errorf("inserting highlight: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing highlights for %d: %w", id, err)
+	}
+	return nil
+}
+
 // Fail records why an analysis didn't work. Expired demos land here, which is
 // an expected outcome rather than an error condition.
 func (s *Store) Fail(ctx context.Context, id int64, reason string) error {
@@ -319,6 +508,62 @@ func (s *Store) Fail(ctx context.Context, id int64, reason string) error {
 		return fmt.Errorf("marking analysis %d failed: %w", id, err)
 	}
 	return nil
+}
+
+// BestHighlight is one of a player's moments, with enough match context to
+// be understood outside the match it came from.
+type BestHighlight struct {
+	ShareCode string         `json:"share_code"`
+	MapName   string         `json:"map_name,omitempty"`
+	Kind      string         `json:"kind"`
+	Round     int            `json:"round"`
+	StartS    float64        `json:"start_s"`
+	EndS      float64        `json:"end_s"`
+	Score     float64        `json:"score"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+}
+
+// BestHighlights returns a player's own moments across every analysed match,
+// best first.
+//
+// Scoped to the player's own matches as well as their steam id: appearing in
+// someone else's demo shouldn't put their match list within reach.
+func (s *Store) BestHighlights(ctx context.Context, steamID string, limit int) ([]BestHighlight, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT a.share_code, a.map_name, h.kind, h.round, h.start_s, h.end_s, h.score, h.metadata
+		FROM highlights h
+		JOIN demo_analyses a ON a.id = h.analysis_id
+		JOIN matches m       ON m.share_code = a.share_code
+		WHERE h.steam_id = $1
+		  AND m.steam_id = $1
+		  AND a.parser_version = $2
+		  AND a.status = 'done'
+		ORDER BY h.score DESC, a.share_code, h.round
+		LIMIT $3`, steamID, demos.ParserVersion, limit)
+	if err != nil {
+		return nil, fmt.Errorf("loading best highlights for %s: %w", steamID, err)
+	}
+	defer rows.Close()
+
+	out := []BestHighlight{}
+	for rows.Next() {
+		var (
+			h   BestHighlight
+			raw []byte
+		)
+		if err := rows.Scan(&h.ShareCode, &h.MapName, &h.Kind, &h.Round, &h.StartS, &h.EndS, &h.Score, &raw); err != nil {
+			return nil, fmt.Errorf("scanning highlight: %w", err)
+		}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &h.Metadata)
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
 }
 
 // MatchBelongsTo reports whether a sharecode is one of this player's matches,

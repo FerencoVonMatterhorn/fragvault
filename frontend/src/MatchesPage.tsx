@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getMatches, getAnalysis, analyzeMatch, type Match, type Analysis } from "./api";
+import { getMatches, getAnalysis, analyzeMatch, type Match, type Analysis, type Me } from "./api";
 import { mapDisplayName, mapImageUrl } from "./maps";
 import { RoundTimeline } from "./RoundTimeline";
 
 type LoadState = "loading" | "ready" | "error";
 
-export default function MatchesPage() {
+export default function MatchesPage({ me }: { me: Me }) {
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [errorMsg, setErrorMsg] = useState("");
@@ -51,7 +51,7 @@ export default function MatchesPage() {
       {state === "ready" && matches && matches.length > 0 && (
         <ul className="list-reset">
           {[...matches].reverse().map((m) => (
-            <MatchRow key={m.share_code} match={m} />
+            <MatchRow key={m.share_code} match={m} me={me} />
           ))}
         </ul>
       )}
@@ -59,7 +59,7 @@ export default function MatchesPage() {
   );
 }
 
-function MatchRow({ match }: { match: Match }) {
+function MatchRow({ match, me }: { match: Match; me: Me }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [demoUrl, setDemoUrl] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -84,6 +84,7 @@ function MatchRow({ match }: { match: Match }) {
   const status = analysis?.status ?? "none";
   const working = status === "pending" || status === "running";
   const mapImage = mapImageUrl(analysis?.map_name);
+  const myHighlights = analysis?.highlights.filter((h) => h.steam_id === me.steam_id).length ?? 0;
 
   // Parsing takes minutes, so the row polls itself while work is in flight
   // and stops as soon as it isn't.
@@ -158,10 +159,11 @@ function MatchRow({ match }: { match: Match }) {
           {working && <span className="status">Analysing…</span>}
           {/* The detail page is where the scoreboard and highlights live, so
               a finished analysis is a link rather than an inline dump. */}
+          {/* Counts yours, not the whole server's — an enemy's ace is not
+              something this app is offering you. */}
           {status === "done" && (
             <Link to={`/match/${encodeURIComponent(match.share_code)}`} className="small">
-              {analysis?.highlights.length ?? 0} highlight
-              {(analysis?.highlights.length ?? 0) === 1 ? "" : "s"} ›
+              {myHighlights} highlight{myHighlights === 1 ? "" : "s"} ›
             </Link>
           )}
           {/* Failures are often transient — the game coordinator was down,

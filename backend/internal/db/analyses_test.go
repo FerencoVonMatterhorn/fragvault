@@ -212,6 +212,101 @@ func TestCompleteStoresRoundsAndScoreboard(t *testing.T) {
 	}
 }
 
+func TestRederiveRecomputesFromStoredEvents(t *testing.T) {
+	ctx, pool := testPool(t)
+	if err := db.Migrate(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	const steamID = "76561198000000015"
+	const shareCode = "CSGO-fffff-fffff-fffff-fffff-fffff"
+	store := seedMatch(t, ctx, pool, steamID, shareCode)
+
+	if _, err := store.Enqueue(ctx, shareCode, "http://example.test/a.dem"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+	job, err := store.ClaimNext(ctx)
+	if err != nil || job == nil {
+		t.Fatalf("ClaimNext: %v", err)
+	}
+
+	// A demo containing one ace, stored as events rather than only as the
+	// highlight derived from it.
+	kills := []demos.Kill{}
+	for i := 0; i < 5; i++ {
+		kills = append(kills, demos.Kill{
+			Round: 4, Tick: 100 + i*10, Time: float64(300 + i*3),
+			KillerSteamID: steamID, VictimSteamID: "enemy", KillerTeam: 3, VictimTeam: 2,
+			IsHeadshot: i%2 == 0, Weapon: "AK-47",
+		})
+	}
+	if err := store.Complete(ctx, job.ID, demos.Result{
+		MapName:    "de_nuke",
+		Rounds:     []demos.Round{{Number: 4, WinnerTeam: 3, StartTime: 290, EndTime: 360}},
+		Kills:      kills,
+		Clutches:   []demos.Clutch{{Round: 4, Time: 310, PlayerSteamID: steamID, PlayerTeam: 3, EnemiesAlive: 2}},
+		Defuses:    []demos.Defuse{{Round: 4, Time: 350, PlayerSteamID: steamID, PlayerTeam: 3, TimeLeft: 0.8}},
+		Highlights: []demos.Highlight{{SteamID: steamID, Kind: demos.KindMultiKill, Round: 4}},
+	}); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	// Nothing to re-derive while the detector version matches.
+	if job, err := store.ClaimNextRederive(ctx); err != nil || job != nil {
+		t.Fatalf("expected nothing to re-derive, got job=%v err=%v", job, err)
+	}
+
+	// Simulate a detector change by ageing the stored version.
+	if _, err := pool.Exec(ctx, `UPDATE demo_analyses SET detector_version = 0`); err != nil {
+		t.Fatalf("ageing detector version: %v", err)
+	}
+
+	rederive, err := store.ClaimNextRederive(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNextRederive: %v", err)
+	}
+	if rederive == nil {
+		t.Fatal("expected a re-derivation job")
+	}
+	if rederive.ShareCode != shareCode {
+		t.Errorf("share code = %q", rederive.ShareCode)
+	}
+
+	// The events came back intact — this is the whole point: the demo is
+	// long gone and the highlights are still recomputable.
+	if len(rederive.Events.Kills) != 5 {
+		t.Errorf("got %d kills, want 5", len(rederive.Events.Kills))
+	}
+	if len(rederive.Events.Rounds) != 1 || len(rederive.Events.Clutches) != 1 || len(rederive.Events.Defuses) != 1 {
+		t.Errorf("rounds/clutches/defuses = %d/%d/%d, want 1/1/1",
+			len(rederive.Events.Rounds), len(rederive.Events.Clutches), len(rederive.Events.Defuses))
+	}
+
+	// Detecting over those events reproduces the ace without a demo.
+	found := demos.Detect(rederive.Events)
+	if err := store.SaveHighlights(ctx, rederive.ID, found); err != nil {
+		t.Fatalf("SaveHighlights: %v", err)
+	}
+
+	got, err := store.GetAnalysis(ctx, shareCode)
+	if err != nil || got == nil {
+		t.Fatalf("GetAnalysis: %v", err)
+	}
+	var aces int
+	for _, h := range got.Highlights {
+		if h.Kind == demos.KindMultiKill && h.SteamID == steamID {
+			aces++
+		}
+	}
+	if aces != 1 {
+		t.Errorf("got %d multi-kills after re-derivation, want 1", aces)
+	}
+
+	// Claimed rows must not be handed out again, or the worker loops.
+	if job, err := store.ClaimNextRederive(ctx); err != nil || job != nil {
+		t.Fatalf("re-derivation was claimable twice: job=%v err=%v", job, err)
+	}
+}
+
 func TestRequeueOrphanedRecoversInterruptedJobs(t *testing.T) {
 	ctx, pool := testPool(t)
 	if err := db.Migrate(ctx, pool); err != nil {

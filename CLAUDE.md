@@ -53,8 +53,16 @@ secrets in this file or any other.
   See `docs/adr-002-database.md`. The JSON-file store is gone; its importer
   runs once and refuses if the database already has players.
 - Re-analysis is prevented by `UNIQUE (share_code, parser_version)` on
-  `demo_analyses`. Bumping `parser_version` is the deliberate way to force
-  demos to be parsed again.
+  `demo_analyses`. A failed analysis can be retried; finished ones can't.
+- **Two versions, and the difference matters.** `ParserVersion` is how events
+  were pulled out of the demo — bumping it needs the demo again, which Valve
+  may have expired. `DetectorVersion` is how highlights were derived from
+  those events — bumping it re-derives from the database, needs no demo, and
+  works on matches whose demos are long gone. **Bump the detector version
+  unless the extracted events themselves change.**
+- Highlights exist for *every* player in a demo, not just the account that
+  owns the match. Anything user-facing has to filter by steam id, or it will
+  cheerfully show someone an enemy's ace as their own.
 - **Demo URLs only come from the CS2 game coordinator.** There is no Steam
   Web API for them, and no maintained Go library speaks that protocol — hence
   `gc-sidecar/`, a thin Node service. Don't go looking for an HTTP endpoint

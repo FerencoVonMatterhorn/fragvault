@@ -11,6 +11,7 @@ import {
 } from "./api";
 import { HighlightList } from "./Highlights";
 import { RoundTimeline } from "./RoundTimeline";
+import HighlightsPage from "./HighlightsPage";
 import MatchesPage from "./MatchesPage";
 import MatchPage from "./MatchPage";
 import ProfilePage from "./ProfilePage";
@@ -64,14 +65,17 @@ export default function App() {
               session, so showing it signed out would be four dead ends. */}
           {me && (
             <nav className="nav">
+              {/* Setup is deliberately not here: it's used once, and a third
+                  of the navigation is too much to spend on it. It lives on
+                  Profile and is surfaced from empty states instead. */}
+              <NavLink to="/highlights" className={navClass}>
+                Highlights
+              </NavLink>
               <NavLink to="/matches" className={navClass}>
                 Matches
               </NavLink>
               <NavLink to="/profile" className={navClass}>
                 Profile
-              </NavLink>
-              <NavLink to="/setup" className={navClass}>
-                Setup
               </NavLink>
             </nav>
           )}
@@ -92,7 +96,11 @@ export default function App() {
         {offline && me && <OfflineNotice />}
         <Routes>
           <Route path="/" element={me ? <Navigate to="/matches" replace /> : <SignedOut backendOffline={offline} />} />
-          <Route path="/matches" element={me ? <MatchesPage /> : <SignedOut backendOffline={offline} />} />
+          <Route
+            path="/highlights"
+            element={me ? <HighlightsPage /> : <SignedOut backendOffline={offline} />}
+          />
+          <Route path="/matches" element={me ? <MatchesPage me={me} /> : <SignedOut backendOffline={offline} />} />
           <Route
             path="/profile"
             element={me ? <ProfilePage me={me} onLoggedOut={signOut} /> : <SignedOut backendOffline={offline} />}

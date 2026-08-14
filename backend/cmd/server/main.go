@@ -330,6 +330,24 @@ func main() {
 		writeJSON(w, status, analysis)
 	})
 
+	// GET /api/highlights — the player's own best moments across every
+	// analysed match. The product's actual promise, in one list.
+	mux.HandleFunc("GET /api/highlights", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := sessions.Verify(r)
+		if err != nil {
+			http.Error(w, "not logged in", http.StatusUnauthorized)
+			return
+		}
+
+		best, err := store.BestHighlights(r.Context(), claims.SteamID, 50)
+		if err != nil {
+			log.Printf("error: BestHighlights failed for %s: %v", claims.SteamID, err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"highlights": best})
+	})
+
 	// GET /api/matches/{sharecode}/analysis — status and highlights.
 	mux.HandleFunc("GET /api/matches/{sharecode}/analysis", func(w http.ResponseWriter, r *http.Request) {
 		claims, err := sessions.Verify(r)

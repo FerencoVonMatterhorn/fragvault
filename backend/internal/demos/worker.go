@@ -22,8 +22,21 @@ type Result struct {
 	Highlights []Highlight
 	Players    []PlayerStat
 	Rounds     []Round
+	// The events the highlights were derived from, stored so a later
+	// detector change can re-derive without the demo.
+	Kills      []Kill
+	Clutches   []Clutch
+	Defuses    []Defuse
 	TeamAScore int
 	TeamBScore int
+}
+
+// Rederive is an analysis whose events are stored but whose highlights were
+// produced by an older detector version.
+type Rederive struct {
+	ID        int64
+	ShareCode string
+	Events    Parsed
 }
 
 // Avatars resolves steam ids to avatar URLs. Optional: a worker without one
@@ -41,6 +54,11 @@ type Queue interface {
 	ClaimNext(ctx context.Context) (*Job, error)
 	Complete(ctx context.Context, id int64, res Result) error
 	Fail(ctx context.Context, id int64, reason string) error
+
+	// ClaimNextRederive takes an analysis whose stored events outlive its
+	// highlights, or nil when there is nothing to recompute.
+	ClaimNextRederive(ctx context.Context) (*Rederive, error)
+	SaveHighlights(ctx context.Context, id int64, highlights []Highlight) error
 }
 
 // Worker parses queued demos, strictly one at a time.
@@ -81,15 +99,41 @@ func (w *Worker) Run(ctx context.Context) {
 			continue
 		}
 
-		if job == nil {
-			if !w.sleep(ctx, w.idleInterval) {
-				return
-			}
+		if job != nil {
+			w.process(ctx, *job)
 			continue
 		}
 
-		w.process(ctx, *job)
+		// Nothing to parse. Recomputing highlights from stored events is
+		// seconds of CPU rather than minutes, and needs no demo, so it fills
+		// the gaps rather than competing with real analysis.
+		if did, err := w.rederive(ctx); err != nil {
+			log.Printf("error: re-deriving highlights: %v", err)
+		} else if did {
+			continue
+		}
+
+		if !w.sleep(ctx, w.idleInterval) {
+			return
+		}
 	}
+}
+
+// rederive recomputes one analysis's highlights from its stored events.
+// Reports whether there was anything to do.
+func (w *Worker) rederive(ctx context.Context) (bool, error) {
+	job, err := w.queue.ClaimNextRederive(ctx)
+	if err != nil || job == nil {
+		return false, err
+	}
+
+	highlights := Detect(job.Events)
+	if err := w.queue.SaveHighlights(context.WithoutCancel(ctx), job.ID, highlights); err != nil {
+		return true, err
+	}
+	log.Printf("re-derived %s from stored events: %d highlights (detector v%d)",
+		job.ShareCode, len(highlights), DetectorVersion)
+	return true, nil
 }
 
 func (w *Worker) process(ctx context.Context, job Job) {
@@ -139,6 +183,9 @@ func (w *Worker) analyse(ctx context.Context, job Job) (Result, error) {
 		Highlights: Detect(parsed),
 		Players:    parsed.Players,
 		Rounds:     parsed.Rounds,
+		Kills:      parsed.Kills,
+		Clutches:   parsed.Clutches,
+		Defuses:    parsed.Defuses,
 		TeamAScore: parsed.TeamAScore,
 		TeamBScore: parsed.TeamBScore,
 	}, nil
