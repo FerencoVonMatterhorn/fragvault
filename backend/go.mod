@@ -2,12 +2,25 @@ module github.com/fragvault/fragvault/backend
 
 go 1.25.0
 
-require github.com/jackc/pgx/v5 v5.10.0
+require (
+	github.com/jackc/pgx/v5 v5.10.0
+	github.com/markus-wa/demoinfocs-golang/v5 v5.2.0
+)
 
 require (
+	github.com/golang/geo v0.0.0-20230421003525-6adc56603217 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	github.com/markus-wa/go-unassert v0.1.3 // indirect
+	github.com/markus-wa/gobitread v0.2.5-0.20241202000432-3c3e0bc797c6 // indirect
+	github.com/markus-wa/godispatch v1.4.1 // indirect
+	github.com/markus-wa/quickhull-go/v2 v2.2.0 // indirect
+	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )

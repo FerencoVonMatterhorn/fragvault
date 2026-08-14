@@ -1,5 +1,17 @@
 import { useEffect, useState } from "react";
-import { getMe, getMatches, submitOnboarding, loginUrl, logout, BackendUnavailableError, type Me, type Match } from "./api";
+import {
+  getMe,
+  getMatches,
+  submitOnboarding,
+  loginUrl,
+  logout,
+  getAnalysis,
+  analyzeMatch,
+  BackendUnavailableError,
+  type Me,
+  type Match,
+  type Analysis,
+} from "./api";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -193,16 +205,143 @@ function MatchList() {
       {state === "error" && <p style={{ color: "crimson" }}>{errorMsg}</p>}
       {state === "ready" && matches && matches.length === 0 && <p>No matches discovered yet.</p>}
       {state === "ready" && matches && matches.length > 0 && (
-        <ul>
+        <ul style={{ listStyle: "none", padding: 0 }}>
           {[...matches].reverse().map((m) => (
-            <li key={m.share_code}>
-              <code>{m.share_code}</code> — discovered {new Date(m.discovered_at).toLocaleString()}
-            </li>
+            <MatchRow key={m.share_code} match={m} />
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+const KIND_LABELS: Record<string, string> = {
+  multi_kill: "Multi-kill",
+  clutch: "Clutch",
+  opening_duel: "Opening duel",
+  defuse: "Defuse",
+};
+
+function MatchRow({ match }: { match: Match }) {
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [demoUrl, setDemoUrl] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getAnalysis(match.share_code)
+      .then((a) => {
+        if (!cancelled) setAnalysis(a);
+      })
+      .catch(() => {
+        // A match with no analysis is the normal case, and a failure here
+        // shouldn't take out the match list.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [match.share_code]);
+
+  const status = analysis?.status ?? "none";
+  const working = status === "pending" || status === "running";
+
+  // Parsing takes minutes, so the row polls itself while work is in flight
+  // and stops as soon as it isn't.
+  useEffect(() => {
+    if (!working) return;
+    const id = setInterval(() => {
+      getAnalysis(match.share_code)
+        .then(setAnalysis)
+        .catch(() => {});
+    }, 4000);
+    return () => clearInterval(id);
+  }, [working, match.share_code]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      setAnalysis(await analyzeMatch(match.share_code, demoUrl.trim()));
+      setShowForm(false);
+      setDemoUrl("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <li style={{ border: "1px solid #ddd", borderRadius: 8, padding: "0.75rem 1rem", marginBottom: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+        <div>
+          <code>{match.share_code}</code>
+          <div style={{ fontSize: "0.85rem", color: "#666" }}>
+            discovered {new Date(match.discovered_at).toLocaleString()}
+            {analysis?.map_name && ` · ${analysis.map_name}`}
+          </div>
+        </div>
+        <div style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+          {status === "none" && !showForm && <button onClick={() => setShowForm(true)}>Analyse</button>}
+          {working && <span style={{ color: "#666" }}>Analysing…</span>}
+          {status === "done" && <span>{analysis?.highlights.length ?? 0} highlights</span>}
+          {status === "failed" && <span style={{ color: "crimson" }}>Failed</span>}
+        </div>
+      </div>
+
+      {showForm && (
+        <form onSubmit={submit} style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <input
+            style={{ flex: 1 }}
+            placeholder="Demo URL (.dem or .dem.bz2)"
+            value={demoUrl}
+            onChange={(e) => setDemoUrl(e.target.value)}
+          />
+          <button type="submit" disabled={submitting || demoUrl.trim() === ""}>
+            {submitting ? "Queuing…" : "Queue"}
+          </button>
+          <button type="button" onClick={() => setShowForm(false)} disabled={submitting}>
+            Cancel
+          </button>
+        </form>
+      )}
+
+      {error && <p style={{ color: "crimson", fontSize: "0.9rem" }}>{error}</p>}
+
+      {/* Valve expires demos, so a failure here is usually "too old" rather
+          than anything broken. */}
+      {status === "failed" && analysis?.error && (
+        <p style={{ color: "crimson", fontSize: "0.85rem", marginBottom: 0 }}>{analysis.error}</p>
+      )}
+
+      {status === "done" && analysis && analysis.highlights.length > 0 && (
+        <ol style={{ marginTop: "0.75rem", marginBottom: 0, fontSize: "0.9rem" }}>
+          {analysis.highlights.map((h, i) => (
+            <li key={`${h.kind}-${h.round}-${h.start_s}-${i}`}>
+              <strong>{KIND_LABELS[h.kind] ?? h.kind}</strong> — round {h.round}, {formatClock(h.start_s)}–
+              {formatClock(h.end_s)}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {status === "done" && analysis?.highlights.length === 0 && (
+        <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: 0 }}>
+          Parsed successfully, but nothing met the highlight thresholds.
+        </p>
+      )}
+    </li>
+  );
+}
+
+function formatClock(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

@@ -29,6 +29,27 @@ export class BackendUnavailableError extends Error {
   }
 }
 
+export interface Highlight {
+  steam_id: string;
+  kind: string;
+  round: number;
+  start_s: number;
+  end_s: number;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** "none" means nobody has asked for this match to be analysed yet. */
+export type AnalysisStatus = "none" | "pending" | "running" | "done" | "failed";
+
+export interface Analysis {
+  share_code: string;
+  status: AnalysisStatus;
+  error?: string;
+  map_name?: string;
+  highlights: Highlight[];
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -74,6 +95,27 @@ export async function submitOnboarding(authCode: string, startingShareCode: stri
 
 export function loginUrl(): string {
   return "/auth/steam/login";
+}
+
+export async function getAnalysis(shareCode: string): Promise<Analysis> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analysis`, {
+    credentials: "include",
+  });
+  return jsonOrThrow<Analysis>(res);
+}
+
+/**
+ * Queues a demo for analysis. Safe to call twice — the backend returns the
+ * existing analysis rather than parsing the same demo again.
+ */
+export async function analyzeMatch(shareCode: string, demoUrl: string): Promise<Analysis> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(shareCode)}/analyze`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ demo_url: demoUrl }),
+  });
+  return jsonOrThrow<Analysis>(res);
 }
 
 /**

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/fragvault/fragvault/backend/internal/db"
+	"github.com/fragvault/fragvault/backend/internal/demos"
 	"github.com/fragvault/fragvault/backend/internal/matches"
 	"github.com/fragvault/fragvault/backend/internal/session"
 	"github.com/fragvault/fragvault/backend/internal/steamauth"
@@ -60,6 +61,13 @@ func main() {
 	sessions := session.NewManager([]byte(sessionSecretHex), 30*24*time.Hour, !devInsecureCookie)
 	store := db.NewStore(pool)
 	steamAPI := matches.NewSteamAPIClient(steamWebAPIKey)
+
+	// One worker, deliberately. Parsing is minutes of sustained CPU on a
+	// burstable VM; running analyses concurrently would throttle the web
+	// server along with them.
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	defer stopWorker()
+	go demos.NewWorker(store, envOr("DEMO_TMP_DIR", os.TempDir())).Run(workerCtx)
 
 	mux := http.NewServeMux()
 
@@ -199,6 +207,99 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"matches": rec.Matches,
 		})
+	})
+
+	// POST /api/matches/{sharecode}/analyze — queue a demo for analysis.
+	// The demo URL is supplied by the caller for now; the Game Coordinator
+	// sidecar will resolve it automatically later.
+	mux.HandleFunc("POST /api/matches/{sharecode}/analyze", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := sessions.Verify(r)
+		if err != nil {
+			http.Error(w, "not logged in", http.StatusUnauthorized)
+			return
+		}
+		shareCode := r.PathValue("sharecode")
+
+		// Without this check a user could queue work against anyone's
+		// sharecode, which is both a privacy leak and free CPU for them.
+		owned, err := store.MatchBelongsTo(r.Context(), shareCode, claims.SteamID)
+		if err != nil {
+			log.Printf("error: MatchBelongsTo failed: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if !owned {
+			http.Error(w, "no such match for this account", http.StatusNotFound)
+			return
+		}
+
+		var body struct {
+			DemoURL string `json:"demo_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.DemoURL == "" {
+			http.Error(w, "demo_url is required until automatic demo lookup exists", http.StatusBadRequest)
+			return
+		}
+
+		created, err := store.Enqueue(r.Context(), shareCode, body.DemoURL)
+		if err != nil {
+			log.Printf("error: Enqueue failed for %s: %v", shareCode, err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+
+		analysis, err := store.GetAnalysis(r.Context(), shareCode)
+		if err != nil {
+			log.Printf("error: GetAnalysis failed for %s: %v", shareCode, err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		// 200 rather than 201 when it already existed: asking twice is a
+		// no-op by design, and the caller gets the same state either way.
+		status := http.StatusOK
+		if created {
+			status = http.StatusAccepted
+		}
+		writeJSON(w, status, analysis)
+	})
+
+	// GET /api/matches/{sharecode}/analysis — status and highlights.
+	mux.HandleFunc("GET /api/matches/{sharecode}/analysis", func(w http.ResponseWriter, r *http.Request) {
+		claims, err := sessions.Verify(r)
+		if err != nil {
+			http.Error(w, "not logged in", http.StatusUnauthorized)
+			return
+		}
+		shareCode := r.PathValue("sharecode")
+
+		owned, err := store.MatchBelongsTo(r.Context(), shareCode, claims.SteamID)
+		if err != nil {
+			log.Printf("error: MatchBelongsTo failed: %v", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if !owned {
+			http.Error(w, "no such match for this account", http.StatusNotFound)
+			return
+		}
+
+		analysis, err := store.GetAnalysis(r.Context(), shareCode)
+		if err != nil {
+			log.Printf("error: GetAnalysis failed for %s: %v", shareCode, err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if analysis == nil {
+			// Never asked for. Not an error — the UI shows this as
+			// "not analysed yet".
+			writeJSON(w, http.StatusOK, map[string]any{"share_code": shareCode, "status": "none", "highlights": []any{}})
+			return
+		}
+		writeJSON(w, http.StatusOK, analysis)
 	})
 
 	log.Printf("fragvault backend listening on %s (base_url=%s)", addr, baseURL)
