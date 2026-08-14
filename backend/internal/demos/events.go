@@ -14,7 +14,8 @@ package demos
 // the same demo.
 //
 // 2: added the scoreboard (per-player stats and team scores).
-const ParserVersion = 2
+// 3: kept per-round results, which the parser had always discarded.
+const ParserVersion = 3
 
 // Highlight kinds. Stored as text so adding one is code, not a migration.
 const (

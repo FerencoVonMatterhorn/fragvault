@@ -21,6 +21,7 @@ type Result struct {
 	Duration   float64
 	Highlights []Highlight
 	Players    []PlayerStat
+	Rounds     []Round
 	TeamAScore int
 	TeamBScore int
 }
@@ -137,6 +138,7 @@ func (w *Worker) analyse(ctx context.Context, job Job) (Result, error) {
 		Duration:   parsed.Duration,
 		Highlights: Detect(parsed),
 		Players:    parsed.Players,
+		Rounds:     parsed.Rounds,
 		TeamAScore: parsed.TeamAScore,
 		TeamBScore: parsed.TeamBScore,
 	}, nil

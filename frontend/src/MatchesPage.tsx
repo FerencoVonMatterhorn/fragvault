@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getMatches, getAnalysis, analyzeMatch, type Match, type Analysis } from "./api";
 import { mapDisplayName, mapImageUrl } from "./maps";
+import { RoundTimeline } from "./RoundTimeline";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -126,15 +127,25 @@ function MatchRow({ match }: { match: Match }) {
               before that there is nothing to show a picture of. */}
           {mapImage && <img className="map-thumb" src={mapImage} alt="" loading="lazy" />}
           <div style={{ minWidth: 0 }}>
-            <div className="mono">{match.share_code}</div>
-            <div className="small muted">
+            {analysis?.map_name ? (
+              <h2 style={{ fontSize: "var(--t-small)" }}>{mapDisplayName(analysis.map_name)}</h2>
+            ) : (
+              <div className="mono caption">{match.share_code}</div>
+            )}
+            <div className="caption muted">
               {new Date(match.discovered_at).toLocaleDateString(undefined, {
                 day: "numeric",
                 month: "short",
                 year: "numeric",
               })}
-              {analysis?.map_name && ` · ${mapDisplayName(analysis.map_name)}`}
             </div>
+            {/* A condensed strip in the row: how the match went, before you
+                open it. */}
+            {analysis && analysis.rounds.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <RoundTimeline rounds={analysis.rounds} small />
+              </div>
+            )}
           </div>
         </div>
 

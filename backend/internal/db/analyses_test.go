@@ -141,6 +141,77 @@ func TestEnqueueLeavesAFinishedAnalysisAlone(t *testing.T) {
 	}
 }
 
+func TestCompleteStoresRoundsAndScoreboard(t *testing.T) {
+	ctx, pool := testPool(t)
+	if err := db.Migrate(ctx, pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	const shareCode = "CSGO-eeeee-eeeee-eeeee-eeeee-eeeee"
+	store := seedMatch(t, ctx, pool, "76561198000000014", shareCode)
+
+	if _, err := store.Enqueue(ctx, shareCode, "http://example.test/a.dem"); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+	job, err := store.ClaimNext(ctx)
+	if err != nil || job == nil {
+		t.Fatalf("ClaimNext: %v", err)
+	}
+
+	err = store.Complete(ctx, job.ID, demos.Result{
+		MapName:    "de_mirage",
+		TeamAScore: 11,
+		TeamBScore: 13,
+		Rounds: []demos.Round{
+			{Number: 1, WinnerTeam: 3, StartTime: 0, EndTime: 95},
+			{Number: 2, WinnerTeam: 2, StartTime: 110, EndTime: 190},
+			{Number: 3, WinnerTeam: 3, StartTime: 205, EndTime: 260},
+		},
+		Players: []demos.PlayerStat{
+			{SteamID: "76561198000000014", Name: "tester", Team: 3, Kills: 20, Deaths: 14, Damage: 2000, Rounds: 3},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	got, err := store.GetAnalysis(ctx, shareCode)
+	if err != nil || got == nil {
+		t.Fatalf("GetAnalysis: %v", err)
+	}
+	if len(got.Rounds) != 3 {
+		t.Fatalf("got %d rounds, want 3", len(got.Rounds))
+	}
+	// Ordered by number, so the strip renders left to right without the
+	// client having to sort it.
+	for i, want := range []int{1, 2, 3} {
+		if got.Rounds[i].Number != want {
+			t.Errorf("round %d has number %d", i, got.Rounds[i].Number)
+		}
+	}
+	if got.Rounds[1].Winner != 2 {
+		t.Errorf("round 2 winner = %d, want 2", got.Rounds[1].Winner)
+	}
+	if got.TeamBScore != 13 {
+		t.Errorf("team B score = %d, want 13", got.TeamBScore)
+	}
+
+	// Re-completing replaces rather than appends: a retry must not double
+	// the strip.
+	if err := store.Complete(ctx, job.ID, demos.Result{
+		MapName: "de_mirage",
+		Rounds:  []demos.Round{{Number: 1, WinnerTeam: 2}},
+	}); err != nil {
+		t.Fatalf("second Complete: %v", err)
+	}
+	got, err = store.GetAnalysis(ctx, shareCode)
+	if err != nil {
+		t.Fatalf("GetAnalysis after re-complete: %v", err)
+	}
+	if len(got.Rounds) != 1 {
+		t.Fatalf("got %d rounds after re-complete, want 1", len(got.Rounds))
+	}
+}
+
 func TestRequeueOrphanedRecoversInterruptedJobs(t *testing.T) {
 	ctx, pool := testPool(t)
 	if err := db.Migrate(ctx, pool); err != nil {

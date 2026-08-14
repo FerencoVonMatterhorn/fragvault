@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
-import { getMe, loginUrl, logout, BackendUnavailableError, type Me } from "./api";
+import {
+  getMe,
+  loginUrl,
+  logout,
+  BackendUnavailableError,
+  type Me,
+  type Highlight,
+  type RoundResult,
+} from "./api";
+import { HighlightList } from "./Highlights";
+import { RoundTimeline } from "./RoundTimeline";
 import MatchesPage from "./MatchesPage";
 import MatchPage from "./MatchPage";
 import ProfilePage from "./ProfilePage";
@@ -112,29 +122,57 @@ function NotFound() {
   );
 }
 
-// Recognisable at a glance to anyone who plays, which is the entire point of
-// putting them here.
-const HERO_MAPS = ["de_mirage", "de_dust2", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train"];
+// The hero is the product's own artifact rather than a description of it: a
+// real match card, with the round strip and the highlights it produces. Fixed
+// sample data, but the exact shape a real one takes.
+const SAMPLE_ROUNDS: RoundResult[] = [
+  3, 3, 2, 3, 2, 2, 3, 3, 3, 2, 3, 3, 2, 3, 3, 2, 3, 3, 3, 2, 3, 2, 3, 3,
+].map((winner, i) => ({ number: i + 1, winner, start_s: i * 110, end_s: i * 110 + 95 }));
+
+const SAMPLE_HIGHLIGHTS: Highlight[] = [
+  { steam_id: "", kind: "multi_kill", round: 7, start_s: 548, end_s: 581, score: 5, metadata: { kills: 5 } },
+  { steam_id: "", kind: "clutch", round: 12, start_s: 1023, end_s: 1078, score: 7, metadata: { enemies_alive: 3 } },
+  { steam_id: "", kind: "opening_duel", round: 3, start_s: 112, end_s: 121, score: 1, metadata: { weapon: "AK-47" } },
+];
 
 function SignedOut({ backendOffline = false }: { backendOffline?: boolean }) {
   return (
     <>
-      <div className="hero">
-        <h1>Every round you played. The moments worth keeping.</h1>
-        <p>Sign in with Steam and FragVault finds your best plays automatically.</p>
+      <div className="section" style={{ marginTop: 64 }}>
+        <h1>Paste one sharecode.</h1>
+        <p className="muted" style={{ margin: "10px 0 0", fontSize: 19 }}>
+          FragVault reads the demo and finds every ace, clutch and opening pick in it.
+        </p>
       </div>
 
-      {/* Decorative: it says nothing the headline doesn't, so it stays out of
-          the accessibility tree entirely. */}
-      <div className="hero-art" aria-hidden="true">
-        {HERO_MAPS.map((m) => (
-          <img key={m} src={`/maps/${m}.png`} alt="" loading="lazy" />
-        ))}
+      <div className="card" style={{ marginTop: 28 }}>
+        <div className="card-head" style={{ marginBottom: 14 }}>
+          <div className="card-head-main">
+            <img className="map-thumb" src="/maps/de_mirage.png" alt="" />
+            <div>
+              <h2>Mirage</h2>
+              <div className="mono caption muted">CSGO-Pjh5A-pd5aa-tKzDo-XHj4o-nrXwP</div>
+            </div>
+          </div>
+          <span className="scoreline">
+            13<span className="muted">–</span>11
+          </span>
+        </div>
+
+        <RoundTimeline rounds={SAMPLE_ROUNDS} highlights={SAMPLE_HIGHLIGHTS} />
+
+        <div style={{ marginTop: 16 }}>
+          <HighlightList highlights={SAMPLE_HIGHLIGHTS} />
+        </div>
       </div>
 
-      {backendOffline && <OfflineNotice />}
+      {backendOffline && (
+        <div style={{ marginTop: 28 }}>
+          <OfflineNotice />
+        </div>
+      )}
 
-      <div style={{ textAlign: "center" }}>
+      <div style={{ marginTop: 28 }}>
         {/* Not wrapped in the login link while offline: /auth/steam/login goes
             through the same backend, so following it would only produce a 502. */}
         {backendOffline ? (

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getAnalysis, type Analysis, type Me, type ScoreboardRow } from "./api";
 import { HighlightList } from "./Highlights";
 import { mapDisplayName, mapImageUrl } from "./maps";
+import { RoundTimeline } from "./RoundTimeline";
 
 // CS2 team ids.
 const TEAM_T = 2;
@@ -57,18 +58,22 @@ export default function MatchPage({ me }: { me: Me }) {
               image too would only repeat it. */}
           {mapImage && <img className="map-icon" src={mapImage} alt="" loading="lazy" />}
           <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.012em", margin: "0 0 4px" }}>
-              {mapDisplayName(analysis?.map_name) || "Match"}
-            </h1>
-            <p className="small muted mono" style={{ margin: 0 }}>
+            <h1>{mapDisplayName(analysis?.map_name) || "Match"}</h1>
+            <p className="mono caption muted" style={{ margin: "4px 0 0" }}>
               {shareCode}
             </p>
           </div>
         </div>
+
         {done && (
-          <p className="scoreline">
-            {analysis.team_a_score} <span className="muted">–</span> {analysis.team_b_score}
-          </p>
+          <div style={{ marginTop: 18 }}>
+            <p className="scoreline" style={{ margin: "0 0 12px" }}>
+              {analysis.team_a_score}
+              <span className="muted">–</span>
+              {analysis.team_b_score}
+            </p>
+            <RoundTimeline rounds={analysis.rounds} highlights={analysis.highlights} />
+          </div>
         )}
       </header>
 
@@ -122,17 +127,29 @@ function Scoreboard({ rows, meSteamId }: { rows: ScoreboardRow[]; meSteamId: str
 
   return (
     <>
-      {ct.length > 0 && <TeamTable title="Counter-Terrorists" rows={ct} meSteamId={meSteamId} />}
-      {t.length > 0 && <TeamTable title="Terrorists" rows={t} meSteamId={meSteamId} />}
-      {other.length > 0 && <TeamTable title="Unassigned" rows={other} meSteamId={meSteamId} />}
+      {ct.length > 0 && <TeamTable title="Counter-Terrorists" side="ct" rows={ct} meSteamId={meSteamId} />}
+      {t.length > 0 && <TeamTable title="Terrorists" side="t" rows={t} meSteamId={meSteamId} />}
+      {other.length > 0 && <TeamTable title="Unassigned" side="none" rows={other} meSteamId={meSteamId} />}
     </>
   );
 }
 
-function TeamTable({ title, rows, meSteamId }: { title: string; rows: ScoreboardRow[]; meSteamId: string }) {
+function TeamTable({
+  title,
+  side,
+  rows,
+  meSteamId,
+}: {
+  title: string;
+  side: "ct" | "t" | "none";
+  rows: ScoreboardRow[];
+  meSteamId: string;
+}) {
   return (
-    <section style={{ marginBottom: 32 }}>
-      <h2 style={{ fontSize: 19, marginBottom: 10 }}>{title}</h2>
+    // The side colour is doing real work here: two tables of ten names are
+    // otherwise told apart only by reading their headings.
+    <section className={side === "none" ? "team" : `team team-${side}`}>
+      <h2 style={{ marginBottom: 10 }}>{title}</h2>
       <div className="table-scroll">
         <table className="scoreboard">
           <thead>

@@ -1,63 +1,108 @@
 /*
- * Design language borrowed from Apple's marketing pages: a lot of whitespace,
- * one tight bold headline per view, hairline borders instead of shadows, pill
- * buttons, and a near-monochrome palette with a single blue accent.
+ * FragVault visual identity.
  *
- * Everything is tokens first so dark mode is a palette swap rather than a
- * second set of rules.
+ * Derived from the subject rather than from a UI template: the two colours
+ * are the two sides every CS player reads instantly, the display face is
+ * condensed like the game's own HUD, and the signature element is the round
+ * strip from the in-game scoreboard.
+ *
+ * Fonts are self-hosted — no CDN to break, and no third party told who reads
+ * this page.
  */
 
+@font-face {
+  font-family: "Plex Sans";
+  src: url("/fonts/IBMPlexSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plex Sans";
+  src: url("/fonts/IBMPlexSans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plex Condensed";
+  src: url("/fonts/IBMPlexSansCondensed-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plex Condensed";
+  src: url("/fonts/IBMPlexSansCondensed-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plex Mono";
+  src: url("/fonts/IBMPlexMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plex Mono";
+  src: url("/fonts/IBMPlexMono-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
 :root {
-  --bg: #ffffff;
-  --bg-elevated: #f5f5f7;
-  /* Cards sit on the page rather than in it, so they get their own surface
-     and a shadow instead of only a border. */
-  --bg-raised: #ffffff;
-  --text: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --hairline: #d9d9de;
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-text: #ffffff;
-  --link: #0066cc;
+  /* The sides. Using both is what keeps this from being another near-black
+     page with one bright accent, and it carries meaning on the scoreboard. */
+  --ct: #2f6fbf;
+  --ct-soft: rgba(47, 111, 191, 0.12);
+  --t: #b57a1e;
+  --t-soft: rgba(181, 122, 30, 0.14);
+
+  --base: #f4f5f6;
+  --surface: #ffffff;
+  --ink: #1a1d21;
+  --muted: #5f666f;
+  --hairline: #dde0e4;
+
   --danger: #b3261e;
-  --success: #248a3d;
+  --success: #1f7a3d;
 
-  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.1);
-  /* A wide background wash so the page doesn't open on flat paper. Kept far
-     below the threshold where it reads as a glow on any element — it is
-     atmosphere behind the column, not decoration attached to a component. */
-  --hero-wash: radial-gradient(120% 90% at 50% -10%, rgba(0, 113, 227, 0.09), transparent 62%);
+  --accent: var(--ct);
+  --accent-text: #ffffff;
 
-  --radius-card: 18px;
+  --shadow-float: 0 2px 4px rgba(20, 25, 33, 0.06), 0 16px 40px rgba(20, 25, 33, 0.1);
+
+  /* Five sizes. Hierarchy comes from weight, case and colour first. */
+  --t-caption: 13px;
+  --t-small: 15px;
+  --t-body: 17px;
+  --t-head: 22px;
+  --t-display: 40px;
+
+  --radius-card: 14px;
   --radius-pill: 980px;
-  --radius-field: 12px;
-
-  --header-height: 52px;
+  --radius-field: 10px;
+  --header-height: 56px;
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Not #000. Pure black makes every edge a hard line and every surface
-       look like a hole; a near-black with real surfaces above it gives the
-       layout somewhere to sit. */
-    --bg: #0b0d10;
-    --bg-elevated: #15181d;
-    --bg-raised: #14171c;
-    --text: #e9ebef;
-    --text-secondary: #9aa1ad;
-    --hairline: #262b33;
-    /* Apple's dark-mode system blue: the light-mode blue goes muddy here. */
-    --accent: #0a84ff;
-    --accent-hover: #2b95ff;
-    --link: #2997ff;
-    --danger: #ff6961;
-    --success: #30d158;
+    --ct: #5b9be0;
+    --ct-soft: rgba(91, 155, 224, 0.16);
+    --t: #d8a03d;
+    --t-soft: rgba(216, 160, 61, 0.16);
 
-    --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px rgba(0, 0, 0, 0.55);
-    --hero-wash: radial-gradient(120% 90% at 50% -10%, rgba(10, 132, 255, 0.13), transparent 62%);
+    /* Gunmetal, not black. Near-black turns every edge into a hard line and
+       every surface into a hole. */
+    --base: #191c21;
+    --surface: #20242b;
+    --ink: #e7eaee;
+    --muted: #98a0ac;
+    --hairline: #2c313a;
+
+    --danger: #ff7a70;
+    --success: #4cc76a;
+
+    --shadow-float: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px rgba(0, 0, 0, 0.45);
 
     color-scheme: dark;
   }
@@ -73,380 +118,61 @@ html {
 
 body {
   margin: 0;
-  /* The hero wash is deliberately wider than the column, which would
-     otherwise produce a horizontal scrollbar. `clip` rather than `hidden`:
-     hidden turns this into a scroll container and breaks the sticky
-     masthead. */
-  overflow-x: clip;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue",
-    system-ui, sans-serif;
-  font-size: 17px;
-  line-height: 1.47059;
-  letter-spacing: -0.022em;
+  background: var(--base);
+  color: var(--ink);
+  font-family: "Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--t-body);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* --- Layout ------------------------------------------------------------- */
+/* --- Type roles --------------------------------------------------------- */
 
-.page {
-  max-width: 692px;
-  margin: 0 auto;
-  padding: 0 22px 96px;
-}
-
-.section {
-  margin-top: 64px;
-}
-
-/* Translucent sticky bar, the most recognisable part of the reference. */
-.masthead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: var(--header-height);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 22px;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-bottom: 1px solid var(--hairline);
-}
-
-/* It's a link to home now, but it's a wordmark — it should not look like
-   body copy that happens to be clickable. */
-.masthead-brand {
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+/* Condensed, uppercase, tracked out: the vernacular of a scoreboard. Used
+   with restraint — headings and labels only, never body copy. */
+.display,
+h1,
+h2,
+h3 {
+  font-family: "Plex Condensed", "Plex Sans", system-ui, sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin: 0;
-  color: inherit;
-  text-decoration: none;
 }
 
-.masthead-left {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  min-width: 0;
-}
-
-.nav {
-  display: flex;
-  gap: 22px;
-}
-
-.nav-link {
-  font-size: 14px;
-  color: var(--text-secondary);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.nav-link:hover {
-  color: var(--text);
-}
-
-/* Weight rather than colour for the current page: it stays legible in both
-   themes without needing a second accent. */
-.nav-link-active {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.masthead-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-/* --- Profile ------------------------------------------------------------ */
-
-.profile-head {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.profile-avatar {
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--bg-elevated);
-}
-
-.stat-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  font-variant-numeric: tabular-nums;
-}
-
-.avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: block;
-}
-
-/* --- Typography --------------------------------------------------------- */
-
-.hero {
-  text-align: center;
-  padding: 80px 0 24px;
-  position: relative;
-}
-
-/* The glow is painted behind and wider than the column, so the page opens
-   with some depth instead of a headline on a blank field. */
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: -140px -50vw 0;
-  background: var(--hero-wash);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* A band of map emblems under the hero: recognisable to anyone who plays,
-   invisible as a distraction. Masked to fade at both edges so it reads as
-   texture rather than as a row of icons that got cut off. */
-.hero-art {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 26px;
-  margin: 8px 0 32px;
-  opacity: 0.55;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-  pointer-events: none;
-}
-
-.hero-art img {
-  width: 56px;
-  height: 56px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-/* Fewer emblems on a narrow screen rather than smaller ones, which would
-   just turn them into mush. */
-@media (max-width: 640px) {
-  .hero-art img:nth-child(n + 5) {
-    display: none;
-  }
-}
-
-.hero h1 {
-  font-size: clamp(40px, 7vw, 56px);
-  line-height: 1.07143;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  margin: 0 0 12px;
-  /* Without this the last line ends up orphaned — "keeping." alone under a
-     full-width line, which is exactly what a centred headline shouldn't do. */
-  text-wrap: balance;
-}
-
-.hero p {
-  font-size: 21px;
-  line-height: 1.381;
-  letter-spacing: 0.011em;
-  color: var(--text-secondary);
-  margin: 0 auto;
-  /* Wide enough that the line doesn't break in the middle of "and FragVault",
-     balanced so the two lines stay even. */
-  max-width: 36ch;
-  text-wrap: balance;
+h1 {
+  font-size: var(--t-display);
+  line-height: 1.05;
 }
 
 h2 {
-  font-size: 28px;
-  line-height: 1.14286;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-  margin: 0;
+  font-size: var(--t-head);
+  line-height: 1.2;
 }
 
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
+h3 {
+  font-size: var(--t-small);
+  line-height: 1.3;
+  color: var(--muted);
 }
 
-.muted {
-  color: var(--text-secondary);
+.mono,
+.num {
+  font-family: "Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .small {
-  font-size: 14px;
-  line-height: 1.42859;
-  letter-spacing: -0.016em;
+  font-size: var(--t-small);
 }
 
-.mono {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 0.92em;
+.caption {
+  font-size: var(--t-caption);
 }
 
-/* --- Controls ----------------------------------------------------------- */
-
-.btn {
-  font: inherit;
-  font-size: 17px;
-  line-height: 1.17648;
-  letter-spacing: -0.022em;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  padding: 12px 22px;
-  cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
-  background: var(--accent);
-  color: var(--accent-text);
-}
-
-.btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.btn:disabled {
-  opacity: 0.42;
-  cursor: default;
-}
-
-.btn:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  outline-offset: 2px;
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--link);
-  border-color: var(--hairline);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-elevated);
-}
-
-/* Small pill for in-card actions, where a full-size button would dominate. */
-.btn-small {
-  font-size: 14px;
-  padding: 7px 15px;
-}
-
-/* A button that belongs mid-sentence: it acts on this page rather than
-   navigating, so it must not be an anchor, but it should read as one. */
-.linklike {
-  font: inherit;
-  color: var(--link);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.field {
-  font: inherit;
-  font-size: 16px;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-field);
-  padding: 11px 14px;
-  width: 100%;
-}
-
-.field:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
-}
-
-/* --- Surfaces ----------------------------------------------------------- */
-
-/* One elevation language: a hairline defines structure at rest, and a shadow
-   means "floating", which only happens on hover. Stacking border + shadow +
-   background shift at rest is the thing that makes an interface look busy
-   without looking designed. */
-.card {
-  background: var(--bg-raised);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  padding: 20px 22px;
-  transition: box-shadow 180ms ease-out, transform 180ms ease-out, border-color 180ms ease-out;
-}
-
-/* Rows are the main thing you scan, so they respond — a single pixel is
-   enough to feel alive without turning the list into a trampoline. */
-.card:hover {
-  border-color: transparent;
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
-}
-
-.card + .card {
-  margin-top: 12px;
-}
-
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.panel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  padding: 22px 24px;
-}
-
-/* Empty and loading states get the map emblem treatment too, so a page with
-   nothing on it still looks like part of the product. */
-.empty {
-  text-align: center;
-  padding: 56px 22px;
-  border: 1px dashed var(--hairline);
-  border-radius: var(--radius-card);
-  color: var(--text-secondary);
-}
-
-.empty img {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  opacity: 0.35;
-  margin-bottom: 14px;
-}
-
-.notice {
-  background: var(--bg-elevated);
-  border-radius: var(--radius-card);
-  padding: 16px 20px;
-  font-size: 15px;
-  color: var(--text-secondary);
-  margin: 0 0 24px;
+.muted {
+  color: var(--muted);
 }
 
 .error {
@@ -457,87 +183,204 @@ h2 {
   color: var(--success);
 }
 
-/* --- Status ------------------------------------------------------------- */
-
-.status {
-  font-size: 14px;
-  letter-spacing: -0.016em;
-  color: var(--text-secondary);
-  white-space: nowrap;
+a {
+  color: var(--accent);
 }
 
-.status-done {
-  color: var(--text);
-  font-weight: 500;
+/* --- Layout ------------------------------------------------------------- */
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 22px 96px;
 }
 
-.status-failed {
-  color: var(--danger);
+.section {
+  margin-top: 56px;
 }
 
-/* --- Lists -------------------------------------------------------------- */
-
-.list-reset {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.highlights {
-  list-style: none;
-  margin: 18px 0 0;
-  padding: 18px 0 0;
-  border-top: 1px solid var(--hairline);
-}
-
-.highlight {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 7px 0;
-  font-size: 15px;
-}
-
-.highlight-kind {
-  font-weight: 500;
-}
-
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* --- Match detail ------------------------------------------------------- */
-
-/* These are map emblems, not overview screenshots, so they get shown whole
-   at their own aspect ratio — cropping one to a wide banner turns a
-   recognisable logo into an abstract fragment. */
-.map-icon {
-  width: 72px;
-  height: 72px;
-  object-fit: contain;
-  border-radius: 16px;
-  flex-shrink: 0;
-  background: var(--bg-elevated);
-}
-
-.match-title {
+.section-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
+  margin-bottom: 18px;
+}
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  background: color-mix(in srgb, var(--base) 82%, transparent);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.masthead-left {
+  display: flex;
+  align-items: center;
+  gap: 26px;
   min-width: 0;
 }
 
-.map-thumb {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: 10px;
-  flex-shrink: 0;
-  background: var(--bg-elevated);
+.masthead-brand {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: 20px;
+}
+
+.nav-link {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: var(--t-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+}
+
+/* Weight and a rule rather than colour: legible in both themes without a
+   third accent. */
+.nav-link-active {
+  color: var(--ink);
+  border-bottom: 2px solid var(--ct);
+  padding-bottom: 2px;
+}
+
+.masthead-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-small);
+  color: var(--muted);
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: block;
+}
+
+/* --- Controls ----------------------------------------------------------- */
+
+.btn {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: var(--t-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-text);
+  transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+}
+
+.btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--hairline);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--ct-soft);
+  border-color: var(--ct);
+}
+
+.btn-small {
+  font-size: var(--t-caption);
+  padding: 7px 14px;
+}
+
+.field {
+  font: inherit;
+  font-size: 16px;
+  font-family: "Plex Mono", ui-monospace, monospace;
+  color: var(--ink);
+  background: var(--surface);
   border: 1px solid var(--hairline);
+  border-radius: var(--radius-field);
+  padding: 11px 13px;
+  width: 100%;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--ct);
+  box-shadow: 0 0 0 3px var(--ct-soft);
+}
+
+.linklike {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Surfaces ----------------------------------------------------------- */
+
+/* One elevation language: hairline is structure, shadow means floating, and
+   floating only happens on hover. */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  transition: box-shadow 180ms ease-out, transform 180ms ease-out, border-color 180ms ease-out;
+}
+
+.card:hover {
+  border-color: transparent;
+  box-shadow: var(--shadow-float);
+  transform: translateY(-1px);
+}
+
+.card + .card {
+  margin-top: 10px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .card-head-main {
@@ -547,61 +390,168 @@ h2 {
   min-width: 0;
 }
 
-.scoreline {
-  font-size: 44px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  font-variant-numeric: tabular-nums;
-  margin: 16px 0 0;
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
 }
 
-/* Match pages get the same wash as the hero, keyed to the map emblem sitting
-   next to the title. */
-.match-header {
+.notice {
+  border-left: 3px solid var(--t);
+  background: var(--t-soft);
+  border-radius: 0 var(--radius-field) var(--radius-field) 0;
+  padding: 14px 18px;
+  font-size: var(--t-small);
+  margin: 0 0 24px;
+}
+
+/* --- Round strip: the signature ----------------------------------------- */
+
+.timeline {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.tick {
+  width: 9px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--hairline);
   position: relative;
-  margin-bottom: 28px;
+  flex-shrink: 0;
 }
 
-.match-header::before {
+.tick-ct {
+  background: var(--ct);
+}
+
+.tick-t {
+  background: var(--t);
+}
+
+/* Where a highlight happened. A notch on the tick itself rather than a
+   floating marker, so the strip stays one object. */
+.tick-marked::after {
   content: "";
   position: absolute;
-  inset: -60px -50vw -20px;
-  background: var(--hero-wash);
-  pointer-events: none;
-  z-index: -1;
+  left: 50%;
+  top: -6px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+}
+
+/* Sides swap at the half, and the strip should say so. */
+.tick-half {
+  margin-right: 12px;
+}
+
+.timeline-small .tick {
+  width: 5px;
+  height: 13px;
+  border-radius: 1px;
+}
+
+.timeline-small .tick-marked::after {
+  display: none;
+}
+
+.timeline-small .tick-half {
+  margin-right: 7px;
+}
+
+/* --- Match page --------------------------------------------------------- */
+
+.match-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.map-icon {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.map-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.scoreline {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .tabs {
   display: flex;
-  gap: 24px;
+  gap: 22px;
   border-bottom: 1px solid var(--hairline);
-  margin-bottom: 24px;
+  margin: 26px 0 22px;
 }
 
 .tab {
-  font: inherit;
-  font-size: 15px;
-  color: var(--text-secondary);
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: var(--t-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 10px 0;
+  padding: 9px 0;
   margin-bottom: -1px;
   cursor: pointer;
 }
 
 .tab:hover {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .tab-active {
-  color: var(--text);
-  font-weight: 500;
-  border-bottom-color: var(--text);
+  color: var(--ink);
+  border-bottom-color: var(--ct);
 }
 
-/* A table is the first thing here that genuinely can't reflow, so it scrolls
-   inside its own box rather than forcing the page sideways. */
+/* --- Scoreboard --------------------------------------------------------- */
+
+/* The side colour is the point: it makes two teams readable at a glance,
+   which a bold heading alone never did. */
+.team {
+  margin-bottom: 28px;
+  border-left: 2px solid var(--hairline);
+  padding-left: 14px;
+}
+
+.team-ct {
+  border-left-color: var(--ct);
+}
+
+.team-t {
+  border-left-color: var(--t);
+}
+
+.team-ct h2 {
+  color: var(--ct);
+}
+
+.team-t h2 {
+  color: var(--t);
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -609,23 +559,25 @@ h2 {
 .scoreboard {
   width: 100%;
   border-collapse: collapse;
-  font-size: 15px;
-  /* Columns of numbers only line up with tabular figures. */
+  font-size: var(--t-small);
   font-variant-numeric: tabular-nums;
 }
 
 .scoreboard th,
 .scoreboard td {
-  padding: 10px 12px;
+  padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--hairline);
   white-space: nowrap;
 }
 
 .scoreboard th {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-secondary);
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: var(--t-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }
 
 .scoreboard th.num,
@@ -645,11 +597,13 @@ h2 {
 
 .row-me {
   font-weight: 500;
-  background: var(--bg-elevated);
 }
 
-/* A link to the Steam profile, but a scoreboard of ten blue underlined names
-   would be unreadable — it reads as a name and behaves as a link. */
+.row-me td:first-child {
+  box-shadow: inset 2px 0 0 var(--ink);
+  padding-left: 10px;
+}
+
 .player {
   display: flex;
   align-items: center;
@@ -664,18 +618,89 @@ h2 {
 }
 
 .player-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
   flex-shrink: 0;
   display: block;
-  /* Steam serves square avatars, but a private or missing profile leaves a
-     gap — the background keeps the column aligned either way. */
-  background: var(--bg-elevated);
+  background: var(--base);
 }
 
 .player-avatar-empty {
   border: 1px solid var(--hairline);
+}
+
+/* --- Highlights --------------------------------------------------------- */
+
+.highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.highlight {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 52px 1fr auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--t-small);
+}
+
+.highlight:last-child {
+  border-bottom: none;
+}
+
+.highlight-kind {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.highlight-round {
+  font-family: "Plex Mono", monospace;
+  font-size: var(--t-caption);
+  color: var(--muted);
+}
+
+/* --- Profile ------------------------------------------------------------ */
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: var(--surface);
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.stat-value {
+  font-family: "Plex Condensed", system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Utility ------------------------------------------------------------ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .row {
@@ -688,53 +713,42 @@ h2 {
   flex: 1;
 }
 
-/* --- Disclosure --------------------------------------------------------- */
-
-details.panel > summary {
-  cursor: pointer;
-  font-weight: 500;
+.list-reset {
   list-style: none;
-}
-
-details.panel > summary::-webkit-details-marker {
-  display: none;
-}
-
-details.panel > summary::after {
-  content: " ›";
-  color: var(--text-secondary);
-}
-
-details.panel[open] > summary::after {
-  content: " ⌄";
+  margin: 0;
+  padding: 0;
 }
 
 .centered {
   text-align: center;
   padding: 120px 22px;
-  color: var(--text-secondary);
+  color: var(--muted);
 }
 
-/* Every interactive element gets a visible focus ring, including the ones
-   that aren't buttons. Keyboard users are otherwise navigating blind through
-   the nav, the tabs and the scoreboard's profile links. */
+.status {
+  font-size: var(--t-caption);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-failed {
+  color: var(--danger);
+}
+
+/* --- States ------------------------------------------------------------- */
+
 .nav-link:focus-visible,
 .tab:focus-visible,
 .linklike:focus-visible,
 .player:focus-visible,
 .masthead-brand:focus-visible,
+.btn:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ct);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: 4px;
 }
 
-.field:focus-visible {
-  outline: none;
-}
-
-/* Motion is decoration here — none of it conveys meaning, so all of it can
-   go for anyone who has asked for less of it. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -751,43 +765,48 @@ a:focus-visible {
 }
 
 @media (max-width: 640px) {
-  /* The persona is already visible on the profile page; on a phone the nav
-     and the sign-out button are worth more than repeating it. */
+  :root {
+    --t-display: 30px;
+    --t-head: 19px;
+  }
+
   .hide-narrow {
     display: none;
   }
 
-  .masthead {
-    padding: 0 16px;
+  .masthead,
+  .page {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .masthead-left {
-    gap: 16px;
+    gap: 14px;
   }
 
   .nav {
-    gap: 14px;
+    gap: 12px;
+  }
+
+  .highlight {
+    grid-template-columns: 1fr auto;
+    row-gap: 2px;
+  }
+
+  .profile-avatar {
+    width: 60px;
+    height: 60px;
   }
 }
 
 @media (max-width: 520px) {
-  .card-head,
-  .highlight {
+  .card-head {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
   }
 
   .row {
     flex-wrap: wrap;
-  }
-
-  .profile-head {
-    gap: 14px;
-  }
-
-  .profile-avatar {
-    width: 64px;
-    height: 64px;
   }
 }

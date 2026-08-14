@@ -19,8 +19,17 @@ type Analysis struct {
 	MapName    string              `json:"map_name,omitempty"`
 	TeamAScore int                 `json:"team_a_score"`
 	TeamBScore int                 `json:"team_b_score"`
+	Rounds     []RoundResult       `json:"rounds"`
 	Scoreboard []ScoreboardRow     `json:"scoreboard"`
 	Highlights []AnalysisHighlight `json:"highlights"`
+}
+
+// RoundResult is one tick of the round strip.
+type RoundResult struct {
+	Number int     `json:"number"`
+	Winner int     `json:"winner"`
+	StartS float64 `json:"start_s"`
+	EndS   float64 `json:"end_s"`
 }
 
 // ScoreboardRow is one player's line. ADR and headshot percentage are
@@ -109,6 +118,7 @@ func (s *Store) GetAnalysis(ctx context.Context, shareCode string) (*Analysis, e
 			ShareCode:  shareCode,
 			Highlights: []AnalysisHighlight{},
 			Scoreboard: []ScoreboardRow{},
+			Rounds:     []RoundResult{},
 		}
 		mapName, errMsg *string
 	)
@@ -181,7 +191,27 @@ func (s *Store) GetAnalysis(ctx context.Context, shareCode string) (*Analysis, e
 		r.HeadshotPct = stat.HeadshotPct()
 		a.Scoreboard = append(a.Scoreboard, r)
 	}
-	return a, playerRows.Err()
+	if err := playerRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating scoreboard for %s: %w", shareCode, err)
+	}
+
+	roundRows, err := s.pool.Query(ctx, `
+		SELECT number, winner_team, start_s, end_s
+		FROM match_rounds WHERE analysis_id = $1
+		ORDER BY number`, id)
+	if err != nil {
+		return nil, fmt.Errorf("loading rounds for %s: %w", shareCode, err)
+	}
+	defer roundRows.Close()
+
+	for roundRows.Next() {
+		var r RoundResult
+		if err := roundRows.Scan(&r.Number, &r.Winner, &r.StartS, &r.EndS); err != nil {
+			return nil, fmt.Errorf("scanning round: %w", err)
+		}
+		a.Rounds = append(a.Rounds, r)
+	}
+	return a, roundRows.Err()
 }
 
 // ClaimNext takes the oldest pending job. FOR UPDATE SKIP LOCKED means a
@@ -234,6 +264,19 @@ func (s *Store) Complete(ctx context.Context, id int64, res demos.Result) error 
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM match_players WHERE analysis_id = $1`, id); err != nil {
 		return fmt.Errorf("clearing old scoreboard for %d: %w", id, err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM match_rounds WHERE analysis_id = $1`, id); err != nil {
+		return fmt.Errorf("clearing old rounds for %d: %w", id, err)
+	}
+
+	for _, r := range res.Rounds {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO match_rounds (analysis_id, number, winner_team, start_s, end_s)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (analysis_id, number) DO NOTHING`,
+			id, r.Number, r.WinnerTeam, r.StartTime, r.EndTime); err != nil {
+			return fmt.Errorf("inserting round %d: %w", r.Number, err)
+		}
 	}
 
 	for _, p := range res.Players {

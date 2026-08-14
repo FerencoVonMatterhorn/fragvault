@@ -61,6 +61,14 @@ export interface ScoreboardRow {
   headshot_pct: number;
 }
 
+export interface RoundResult {
+  number: number;
+  /** CS2 team ids: 2 = terrorists, 3 = counter-terrorists, 0 = unknown. */
+  winner: number;
+  start_s: number;
+  end_s: number;
+}
+
 export interface Analysis {
   share_code: string;
   status: AnalysisStatus;
@@ -68,6 +76,7 @@ export interface Analysis {
   map_name?: string;
   team_a_score: number;
   team_b_score: number;
+  rounds: RoundResult[];
   scoreboard: ScoreboardRow[];
   highlights: Highlight[];
 }
