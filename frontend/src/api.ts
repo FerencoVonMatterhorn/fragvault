@@ -75,3 +75,14 @@ export async function submitOnboarding(authCode: string, startingShareCode: stri
 export function loginUrl(): string {
   return "/auth/steam/login";
 }
+
+/**
+ * Clears the session cookie server-side. The cookie is HttpOnly, so the
+ * browser can't drop it on its own — this has to be a request.
+ */
+export async function logout(): Promise<void> {
+  const res = await fetch("/auth/logout", { method: "POST", credentials: "include" });
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}`);
+  }
+}

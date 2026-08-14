@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getMe, getMatches, submitOnboarding, loginUrl, BackendUnavailableError, type Me, type Match } from "./api";
+import { getMe, getMatches, submitOnboarding, loginUrl, logout, BackendUnavailableError, type Me, type Match } from "./api";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -33,7 +33,7 @@ export default function App() {
     <div style={{ maxWidth: 640, margin: "4rem auto", fontFamily: "system-ui, sans-serif" }}>
       <h1>FragVault</h1>
       {offline && <OfflineNotice />}
-      {me ? <LoggedIn me={me} /> : <LoggedOut backendOffline={offline} />}
+      {me ? <LoggedIn me={me} onLoggedOut={() => setMe(null)} /> : <LoggedOut backendOffline={offline} />}
     </div>
   );
 }
@@ -77,15 +77,38 @@ function LoggedOut({ backendOffline = false }: { backendOffline?: boolean }) {
   );
 }
 
-function LoggedIn({ me }: { me: Me }) {
+function LoggedIn({ me, onLoggedOut }: { me: Me; onLoggedOut: () => void }) {
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    setLogoutError("");
+    try {
+      await logout();
+      // Only on success: leaving the UI signed in after a failed logout would
+      // be an outright lie about whether the session still exists.
+      onLoggedOut();
+    } catch (err) {
+      setLogoutError(err instanceof Error ? err.message : String(err));
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <div>
-      <p>
-        Signed in as <strong>{me.persona}</strong>
-        {me.avatar_url && (
-          <img src={me.avatar_url} alt="" width={32} height={32} style={{ verticalAlign: "middle", marginLeft: 8 }} />
-        )}
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+        <p style={{ margin: 0 }}>
+          Signed in as <strong>{me.persona}</strong>
+          {me.avatar_url && (
+            <img src={me.avatar_url} alt="" width={32} height={32} style={{ verticalAlign: "middle", marginLeft: 8 }} />
+          )}
+        </p>
+        <button onClick={handleLogout} disabled={loggingOut}>
+          {loggingOut ? "Logging out…" : "Log out"}
+        </button>
+      </div>
+      {logoutError && <p style={{ color: "crimson" }}>Couldn't log out: {logoutError}</p>}
       <Onboarding />
       <MatchList />
     </div>
