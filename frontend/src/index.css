@@ -342,6 +342,42 @@ h2 {
 
 /* --- Match detail ------------------------------------------------------- */
 
+/* These are map emblems, not overview screenshots, so they get shown whole
+   at their own aspect ratio — cropping one to a wide banner turns a
+   recognisable logo into an abstract fragment. */
+.map-icon {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 16px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+
+.match-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.map-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+}
+
+.card-head-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
 .scoreline {
   font-size: 40px;
   font-weight: 600;

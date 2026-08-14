@@ -14,7 +14,7 @@ import {
   type Analysis,
 } from "./api";
 import MatchPage from "./MatchPage";
-import { mapDisplayName } from "./maps";
+import { mapDisplayName, mapImageUrl } from "./maps";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -280,6 +280,7 @@ function MatchRow({ match }: { match: Match }) {
 
   const status = analysis?.status ?? "none";
   const working = status === "pending" || status === "running";
+  const mapImage = mapImageUrl(analysis?.map_name);
 
   // Parsing takes minutes, so the row polls itself while work is in flight
   // and stops as soon as it isn't.
@@ -318,15 +319,20 @@ function MatchRow({ match }: { match: Match }) {
   return (
     <li className="card">
       <div className="card-head">
-        <div>
-          <div className="mono">{match.share_code}</div>
-          <div className="small muted">
-            {new Date(match.discovered_at).toLocaleDateString(undefined, {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-            {analysis?.map_name && ` · ${mapDisplayName(analysis.map_name)}`}
+        <div className="card-head-main">
+          {/* Only appears once the map is known, which is after analysis —
+              before that there is nothing to show a picture of. */}
+          {mapImage && <img className="map-thumb" src={mapImage} alt="" loading="lazy" />}
+          <div style={{ minWidth: 0 }}>
+            <div className="mono">{match.share_code}</div>
+            <div className="small muted">
+              {new Date(match.discovered_at).toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+              {analysis?.map_name && ` · ${mapDisplayName(analysis.map_name)}`}
+            </div>
           </div>
         </div>
 

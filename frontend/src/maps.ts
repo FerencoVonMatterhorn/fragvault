@@ -49,6 +49,73 @@ const MAP_NAMES: Record<string, string> = {
 };
 
 /**
+ * Maps we have an icon for, in `public/maps/<internal>.png`.
+ *
+ * Kept as an explicit set so an unknown map renders without an image rather
+ * than firing a request that 404s. Sourced from github.com/MurkyYT/cs2-map-icons
+ * and vendored rather than hotlinked: raw.githubusercontent.com is rate-limited
+ * and not a CDN, and vendoring means the images survive that repo moving.
+ */
+const MAP_IMAGES = new Set([
+  "ar_baggage",
+  "ar_pool_day",
+  "ar_shoots",
+  "ar_shoots_night",
+  "cs_agency",
+  "cs_alpine",
+  "cs_italy",
+  "cs_office",
+  "cs_shelter",
+  "de_ancient",
+  "de_ancient_night",
+  "de_anubis",
+  "de_assembly",
+  "de_basalt",
+  "de_boulder",
+  "de_brewery",
+  "de_cache",
+  "de_canals",
+  "de_cbble",
+  "de_debris",
+  "de_dogtown",
+  "de_dust",
+  "de_dust2",
+  "de_edin",
+  "de_eldorado",
+  "de_fachwerk",
+  "de_golden",
+  "de_grail",
+  "de_inferno",
+  "de_jura",
+  "de_lake",
+  "de_memento",
+  "de_mills",
+  "de_mirage",
+  "de_nuke",
+  "de_overpass",
+  "de_palacio",
+  "de_palais",
+  "de_poseidon",
+  "de_rooftop",
+  "de_sanctum",
+  "de_stronghold",
+  "de_sugarcane",
+  "de_thera",
+  "de_train",
+  "de_transit",
+  "de_vertigo",
+  "de_warden",
+  "de_whistle",
+]);
+
+/** Returns the icon path for a map, or null when we don't have one. */
+export function mapImageUrl(internal: string | undefined | null): string | null {
+  if (!internal) return null;
+  const key = internal.toLowerCase();
+  return MAP_IMAGES.has(key) ? `/maps/${key}.png` : null;
+}
+
+/**
  * Turns an internal map name into something readable.
  *
  * Unknown maps drop the game-mode prefix and title-case the rest, so a

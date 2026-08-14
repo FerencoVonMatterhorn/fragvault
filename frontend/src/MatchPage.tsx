@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getAnalysis, type Analysis, type Me, type ScoreboardRow } from "./api";
 import { HighlightList } from "./Highlights";
-import { mapDisplayName } from "./maps";
+import { mapDisplayName, mapImageUrl } from "./maps";
 
 // CS2 team ids.
 const TEAM_T = 2;
@@ -41,6 +41,7 @@ export default function MatchPage({ me }: { me: Me }) {
   if (state === "error") return <div className="centered">{errorMsg}</div>;
 
   const done = analysis?.status === "done";
+  const mapImage = mapImageUrl(analysis?.map_name);
 
   return (
     <>
@@ -51,12 +52,19 @@ export default function MatchPage({ me }: { me: Me }) {
       </p>
 
       <header style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.012em", margin: "0 0 6px" }}>
-          {mapDisplayName(analysis?.map_name) || "Match"}
-        </h1>
-        <p className="small muted mono" style={{ margin: 0 }}>
-          {shareCode}
-        </p>
+        <div className="match-title">
+          {/* Decorative: the map name sits right beside it, so announcing the
+              image too would only repeat it. */}
+          {mapImage && <img className="map-icon" src={mapImage} alt="" loading="lazy" />}
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.012em", margin: "0 0 4px" }}>
+              {mapDisplayName(analysis?.map_name) || "Match"}
+            </h1>
+            <p className="small muted mono" style={{ margin: 0 }}>
+              {shareCode}
+            </p>
+          </div>
+        </div>
         {done && (
           <p className="scoreline">
             {analysis.team_a_score} <span className="muted">–</span> {analysis.team_b_score}
