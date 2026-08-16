@@ -52,6 +52,12 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
       TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+      TF_VAR_gpu_render_admin_password: ${{ secrets.GPU_RENDER_ADMIN_PASSWORD }}
+      # A repository *variable*, not a secret — whether the expensive VM is on
+      # is exactly the kind of thing that should be readable in a plan. The
+      # `|| 'false'` matters: an unset variable interpolates to "", which
+      # Terraform cannot parse as a bool.
+      TF_VAR_enable_gpu_render_vm: ${{ vars.ENABLE_GPU_RENDER_VM || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -130,6 +136,10 @@ jobs:
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       TF_VAR_ssh_public_key: ${{ secrets.HOSTING_VM_SSH_PUBLIC_KEY }}
       TF_VAR_allowed_ssh_source_ip: ${{ secrets.ADMIN_SOURCE_IP_CIDR }}
+      TF_VAR_gpu_render_admin_password: ${{ secrets.GPU_RENDER_ADMIN_PASSWORD }}
+      # Must match the plan job exactly, or the apply plans something different
+      # from what was reviewed and approved.
+      TF_VAR_enable_gpu_render_vm: ${{ vars.ENABLE_GPU_RENDER_VM || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

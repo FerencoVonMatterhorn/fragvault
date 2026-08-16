@@ -29,6 +29,9 @@ type Result struct {
 	Defuses    []Defuse
 	TeamAScore int
 	TeamBScore int
+	// Where the demo was retained, empty if it wasn't. Rendering a clip needs
+	// the file itself long after Valve has expired the download URL.
+	DemoBlobPath string
 }
 
 // Rederive is an analysis whose events are stored but whose highlights were
@@ -43,6 +46,14 @@ type Rederive struct {
 // simply produces a scoreboard without pictures.
 type Avatars interface {
 	AvatarsFor(steamIDs []string) (map[string]string, error)
+}
+
+// DemoStore keeps a copy of a parsed demo so a clip can be rendered from it
+// later. Optional: a worker without one analyses exactly as before, and the
+// matches it processes simply can't be rendered once Valve expires their URLs.
+type DemoStore interface {
+	// Retain stores the file at path and returns the name it was stored under.
+	Retain(ctx context.Context, shareCode, path string) (string, error)
 }
 
 // Queue is the persistence the worker needs. Defined here, implemented by the
@@ -72,14 +83,22 @@ type Worker struct {
 	queue Queue
 	// Optional; nil means scoreboards without avatars.
 	avatars Avatars
+	// Optional; nil means demos are parsed and discarded, as they always were.
+	demoStore DemoStore
 	// Where demos are downloaded to. They are deleted after parsing.
 	tmpDir string
 	// How long to wait after finding nothing to do.
 	idleInterval time.Duration
 }
 
-func NewWorker(q Queue, avatars Avatars, tmpDir string) *Worker {
-	return &Worker{queue: q, avatars: avatars, tmpDir: tmpDir, idleInterval: 5 * time.Second}
+func NewWorker(q Queue, avatars Avatars, demoStore DemoStore, tmpDir string) *Worker {
+	return &Worker{
+		queue:        q,
+		avatars:      avatars,
+		demoStore:    demoStore,
+		tmpDir:       tmpDir,
+		idleInterval: 5 * time.Second,
+	}
 }
 
 // Run processes jobs until ctx is cancelled.
@@ -176,19 +195,44 @@ func (w *Worker) analyse(ctx context.Context, job Job) (Result, error) {
 
 	w.addAvatars(parsed.Players)
 
+	// Before this function returns, because the deferred os.Remove above
+	// deletes the file the moment it does.
+	blobPath := w.retainDemo(ctx, job.ShareCode, path)
+
 	return Result{
-		MapName:    parsed.MapName,
-		TickRate:   parsed.TickRate,
-		Duration:   parsed.Duration,
-		Highlights: Detect(parsed),
-		Players:    parsed.Players,
-		Rounds:     parsed.Rounds,
-		Kills:      parsed.Kills,
-		Clutches:   parsed.Clutches,
-		Defuses:    parsed.Defuses,
-		TeamAScore: parsed.TeamAScore,
-		TeamBScore: parsed.TeamBScore,
+		MapName:      parsed.MapName,
+		TickRate:     parsed.TickRate,
+		Duration:     parsed.Duration,
+		Highlights:   Detect(parsed),
+		Players:      parsed.Players,
+		Rounds:       parsed.Rounds,
+		Kills:        parsed.Kills,
+		Clutches:     parsed.Clutches,
+		Defuses:      parsed.Defuses,
+		TeamAScore:   parsed.TeamAScore,
+		TeamBScore:   parsed.TeamBScore,
+		DemoBlobPath: blobPath,
 	}, nil
+}
+
+// retainDemo uploads the demo so a clip can be rendered from it later, and
+// reports where it went. Empty means it wasn't retained.
+//
+// Best effort, exactly like addAvatars: the parse has already succeeded and
+// cost minutes of CPU, and throwing that away because blob storage had a bad
+// minute would be a poor trade. The consequence is real but bounded — that one
+// match can't be rendered later — and it is logged rather than silent.
+func (w *Worker) retainDemo(ctx context.Context, shareCode, path string) string {
+	if w.demoStore == nil {
+		return ""
+	}
+
+	name, err := w.demoStore.Retain(ctx, shareCode, path)
+	if err != nil {
+		log.Printf("warning: could not retain demo for %s, it will not be renderable later: %v", shareCode, err)
+		return ""
+	}
+	return name
 }
 
 // addAvatars fills in avatar URLs in place.

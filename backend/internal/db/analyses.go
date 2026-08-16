@@ -248,13 +248,18 @@ func (s *Store) Complete(ctx context.Context, id int64, res demos.Result) error 
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
+	// COALESCE on demo_blob_path so a re-run that failed to retain the demo
+	// doesn't erase a path an earlier run did manage to store. Retention is
+	// best effort, and losing a working reference to a file that still exists
+	// would be worse than not having tried.
 	if _, err := tx.Exec(ctx, `
 		UPDATE demo_analyses
 		SET status = 'done', error = '', map_name = $2, tick_rate = $3, duration_s = $4,
-		    team_a_score = $5, team_b_score = $6, detector_version = $7, finished_at = now()
+		    team_a_score = $5, team_b_score = $6, detector_version = $7, finished_at = now(),
+		    demo_blob_path = COALESCE(NULLIF($8, ''), demo_blob_path)
 		WHERE id = $1`,
 		id, res.MapName, res.TickRate, res.Duration, res.TeamAScore, res.TeamBScore,
-		demos.DetectorVersion); err != nil {
+		demos.DetectorVersion, res.DemoBlobPath); err != nil {
 		return fmt.Errorf("marking analysis %d done: %w", id, err)
 	}
 

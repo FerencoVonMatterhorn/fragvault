@@ -93,6 +93,25 @@ func main() {
 		log.Printf("GC_SIDECAR_URL not set — demo URLs must be supplied manually")
 	}
 
+	// Optional: without it demos are parsed and discarded exactly as before,
+	// but the matches processed meanwhile can never have clips rendered from
+	// them — Valve expires the demo URL and there is no second copy. Worth a
+	// loud line in the log either way.
+	var demoStore demos.DemoStore
+	if sasURL := os.Getenv("DEMO_BLOB_SAS_URL"); sasURL != "" {
+		bs, err := demos.NewBlobDemoStore(sasURL)
+		if err != nil {
+			// Configured but unusable is a typo, not a degraded mode. Failing
+			// here is how it gets noticed at deploy time rather than a month
+			// later when someone tries to render something.
+			log.Fatalf("DEMO_BLOB_SAS_URL is set but unusable: %v", err)
+		}
+		demoStore = bs
+		log.Printf("retaining parsed demos to blob storage")
+	} else {
+		log.Printf("DEMO_BLOB_SAS_URL not set — demos are discarded after parsing and matches analysed now will not be renderable later")
+	}
+
 	// Anything still marked running belongs to a previous process, since the
 	// worker is single and in-process. Left alone they would never be picked
 	// up again.
@@ -107,7 +126,7 @@ func main() {
 	// server along with them.
 	workerCtx, stopWorker := context.WithCancel(ctx)
 	defer stopWorker()
-	go demos.NewWorker(store, steamAvatars{steamClient}, envOr("DEMO_TMP_DIR", os.TempDir())).Run(workerCtx)
+	go demos.NewWorker(store, steamAvatars{steamClient}, demoStore, envOr("DEMO_TMP_DIR", os.TempDir())).Run(workerCtx)
 
 	mux := http.NewServeMux()
 

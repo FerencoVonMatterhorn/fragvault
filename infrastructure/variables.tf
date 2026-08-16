@@ -36,9 +36,13 @@ variable "enable_hosting_vm" {
 }
 
 variable "enable_blob_storage" {
-  description = "Storage account + container for rendered highlight clips."
+  description = "Storage account + containers for retained demos and rendered highlight clips."
   type        = bool
-  default     = false
+  # On by default from Phase 3a: the backend uploads every parsed demo to the
+  # `demos` container, and a match analysed without that is unrenderable
+  # forever once Valve expires the URL. This costs cents per month and buys
+  # back the entire back catalogue.
+  default = true
 }
 
 variable "enable_function_app" {
@@ -96,7 +100,23 @@ variable "allowed_ssh_source_ip" {
 # --- GPU render VM (later phase) --------------------------------------------
 
 variable "gpu_render_vm_size" {
-  description = "VM size for the GPU box that runs CS2 to render highlight clips. NCasT4_v3-series is the usual cost-effective single-GPU choice on Azure; confirm quota/availability in your region before enabling."
+  description = "VM size for the GPU box that runs CS2 to render highlight clips. Confirm quota AND availability in your region before enabling — a fresh subscription has zero N-series quota, and the SkuNotAvailable trap that bit the hosting VM applies to GPU families too."
   type        = string
-  default     = "Standard_NC4as_T4_v3"
+
+  # NV4as_v4: 4 vCPU, 14 GiB RAM, 1/8th of a Radeon Instinct MI25 — a 2 GiB
+  # frame buffer. That is enough for 1080p CS2 playback and not much more.
+  # EUR 0.4476/hr Windows in swedencentral, the cheapest thing here that can
+  # actually run the game.
+  #
+  # WARNING: Azure retires the entire NVv4 series on 2026-09-30. After that
+  # date any surviving NVv4 VM is force-deallocated and loses SLA and support.
+  # The migration is a change to this one value plus a re-run of the bootstrap
+  # script — nothing else in this config knows the SKU. Targets, both verified
+  # available in swedencentral:
+  #   Standard_NV6ads_A10_v5  NVIDIA A10 1/6th, 4 GiB VRAM, GRID licence
+  #                           included, NVENC. EUR 0.76/hr Windows.
+  #   Standard_NG8ads_V620_v1 AMD V620 1/4th, 8 GiB VRAM. The family Microsoft
+  #                           names for gaming workloads. EUR 1.05/hr Windows.
+  # See docs/adr-003-render-vm.md.
+  default = "Standard_NV4as_v4"
 }

@@ -70,6 +70,36 @@ secrets in this file or any other.
 - The sidecar needs a **dedicated, disposable Steam account**. Its dependency
   tree carries CVEs it can't escape (`steam-user` → `protobufjs`, `adm-zip`),
   documented in `gc-sidecar/README.md`.
+
+## The GPU render VM (`docs/adr-003-render-vm.md`)
+
+- **The render VM needs its own second Steam account.** The sidecar holds
+  `gamesPlayed([730])` for as long as it's connected and Steam allows one game
+  session per account, so running CS2 under the sidecar's account kicks it off
+  the game coordinator. That surfaces as "no new matches" — indistinguishable
+  from there genuinely being none.
+- **`Standard_NV4as_v4` retires 2026-09-30.** After that Azure force-
+  deallocates it. The SKU lives in exactly one place (`gpu_render_vm_size`);
+  the migration targets are in the comment there.
+- **Always launch CS2 with `-insecure`.** HLAE injects a DLL and VAC will
+  eventually notice. This is the other reason the account is disposable.
+- **Creating the VM needs more than Contributor.** The CI service principal
+  gets subscription-scope Contributor from `bootstrap-tfstate.sh`, which cannot
+  create role assignments. `enable_gpu_render_vm` also needs *Role Based Access
+  Control Administrator* on it, or the apply fails with `AuthorizationFailed`.
+- **`azurerm_windows_virtual_machine` cannot create from the golden image.** It
+  always emits an `osProfile`, and Azure rejects that for *specialized* images
+  — which is the only kind that survives Steam's machine-bound login. Hence
+  `scripts/capture-golden-image.sh` and a documented `az vm create` + `terraform
+  import` restore path. Don't "fix" this by generalizing the image.
+- The bootstrap script is embedded into the extension's settings by `file()`,
+  so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
+  or Windows and CI hash differently and re-run the bootstrap every apply.
+- **Demos are now retained** to the `demos` blob container before the local
+  copy is deleted, recorded in `demo_analyses.demo_blob_path`. Upload is best
+  effort and never fails an analysis, so an empty path is an ordinary value
+  meaning "not renderable". Blobs may still be bzip2 — sniff the magic bytes
+  like `ParseFile` does, don't trust the `.dem` suffix.
 - Analysis parsing is separated from detection on purpose: `Parse` emits
   plain events, detectors are pure functions over them, and that's what makes
   them testable without a huge demo fixture. Keep it that way.

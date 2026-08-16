@@ -1,0 +1,17 @@
+-- Where the retained copy of the demo lives in blob storage.
+--
+-- Until now the only reference to a demo was demo_analyses.demo_url, a Valve
+-- URL that expires after a few weeks. That is fine for analysis — the events
+-- are extracted once and kept — but rendering a highlight clip needs the demo
+-- file itself, at an arbitrary point in the future. So the analysis worker now
+-- uploads each demo it parses and records the blob name here.
+--
+-- Empty means "not retained": either the upload failed, or the analysis
+-- predates this migration. Uploading is best effort and never fails an
+-- analysis, so an empty value is an ordinary outcome and rendering has to
+-- handle it rather than assume a demo is always there.
+--
+-- Deliberately just the blob name and not a URL: the container and account
+-- come from configuration, and baking a host or a SAS into a database row
+-- would rot the moment either is rotated.
+ALTER TABLE demo_analyses ADD COLUMN IF NOT EXISTS demo_blob_path TEXT NOT NULL DEFAULT '';

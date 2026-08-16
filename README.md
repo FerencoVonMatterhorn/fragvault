@@ -16,7 +16,7 @@ Sign in with Steam, and FragVault finds the moments worth rewatching in your CS2
 
 A sharecode is not enough to fetch a demo: the download URL only comes from the **CS2 game coordinator**, over Steam's client protocol rather than any HTTP API, and no maintained Go library speaks it. That is the entire reason [`gc-sidecar/`](gc-sidecar/) exists — a deliberately thin Node service so everything else stays in Go.
 
-Demos are downloaded, parsed, and **deleted immediately**; they run to hundreds of megabytes and the results are the part worth keeping. The events pulled out of them — kills, rounds, clutches, defuses — are stored, so improving a detector later re-derives highlights from the database rather than needing a demo Valve may already have expired.
+Demos are downloaded, parsed, and **deleted from the VM immediately**; they run to hundreds of megabytes and the local disk is 30 GB. The events pulled out of them — kills, rounds, clutches, defuses — are stored, so improving a detector later re-derives highlights from the database rather than needing a demo Valve may already have expired. A copy of the demo itself goes to blob storage, because rendering a clip does need the original file back, at some arbitrary point in the future.
 
 ## Roadmap
 
@@ -26,8 +26,10 @@ Sign in with Steam, onboard once, and have your recent matches discovered by wal
 **Phase 2 — Analyse demos** ✅ *live*
 The game coordinator resolves a sharecode to a demo URL, the demo is parsed, and highlights fall out: multi-kills, clutches, opening duels and defuses, each with a clip window. Every match gets a scoreboard (K/A/D, ADR, HS%, MVPs) and a round-by-round history. Parsing is separated from detection, so the rules that decide what counts as a clutch are unit-tested without a demo fixture.
 
-**Phase 3 — Create highlights**
-Turn those timestamps into actual video. A GPU VM runs CS2 against the demo and records the clip; a Function App orchestrates the job so nothing expensive stays running between renders; finished clips land in blob storage. All three already exist in Terraform behind `enable_gpu_render_vm`, `enable_function_app` and `enable_blob_storage`, disabled so they can't bill before the phase starts. The GPU VM is by far the most expensive resource in this repo — it should be created per job and destroyed after.
+**Phase 3 — Create highlights** 🚧 *in progress*
+Turn those timestamps into actual video. There is no headless CS2 and no server-side movie mode, so this means a Windows GPU VM running the real game against the real demo, recording with [HLAE](https://github.com/advancedfx/advancedfx) piped into ffmpeg. Terraform builds and configures that box today (`enable_gpu_render_vm`), and every parsed demo is now retained in blob storage so a clip can still be rendered months later, long after Valve has expired the download URL.
+
+The VM is started and deallocated rather than created and destroyed — deallocated it bills nothing but its disk, and starting takes 90 seconds against 45 minutes to provision one from scratch. Left running it costs ~EUR 320/month, so the cost model depends entirely on it being asleep. Still to come: the render queue, the agent on the VM, and the API that ties them together. See [ADR-003](docs/adr-003-render-vm.md).
 
 **Phase 4 — Share with friends**
 Short links to rendered clips, served from blob storage through time-limited SAS URLs rather than a public container. Wants a clip page with an OpenGraph preview so a link dropped into Discord unfurls properly.
@@ -50,8 +52,8 @@ Smaller things, roughly in the order they'll start to hurt:
 - `frontend/` — React + TypeScript + Vite
 - `backend/` — Go HTTP API, demo parsing and highlight detection, Postgres persistence
 - `gc-sidecar/` — thin Node service that resolves sharecodes to demo URLs via the CS2 game coordinator
-- `function-app/` — placeholder for the later clip-rendering phase
-- `infrastructure/` — Terraform for all infra (only the hosting VM is enabled by default; the rest sits behind `enable_*` variables so nothing bills before its phase starts)
+- `infrastructure/` — Terraform for all infra (the hosting VM and blob storage are enabled by default; the GPU render VM sits behind `enable_gpu_render_vm` so it can't bill before it's wanted)
+- `infrastructure/scripts/` — the GPU VM's bootstrap script, and the golden-image capture that Terraform structurally can't own
 - `deploy/` — compose file and Caddyfile that run the app on the VM
 - `docs/` — architecture decision records
 

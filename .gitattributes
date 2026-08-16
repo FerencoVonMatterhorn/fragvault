@@ -11,6 +11,12 @@
 *.tf text eol=lf
 *.hcl text eol=lf
 
+# The GPU VM's bootstrap script is embedded into the CustomScriptExtension's
+# settings by `file()`, so its exact bytes are part of the plan. A CRLF
+# checkout on Windows and an LF one in CI would hash differently and re-run the
+# bootstrap on every apply. PowerShell is happy with LF.
+*.ps1 text eol=lf
+
 # Container build inputs are consumed by Linux tooling only.
 Dockerfile text eol=lf
 .dockerignore text eol=lf
