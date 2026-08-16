@@ -20,9 +20,9 @@
 #     once than to automate, and the login is machine-bound anyway. Done once
 #     over RDP, then captured into the golden image.
 #   - set the auto-logon password. That is a secret and has no business in
-#     extension settings, which are readable from the portal. Autologon.exe is
-#     installed below; run it by hand once and it stores the password in LSA
-#     secrets rather than the registry.
+#     extension settings, which are readable from the portal. Autologon64.exe
+#     is downloaded below; run it by hand once and it stores the password in
+#     LSA secrets rather than the registry.
 #
 # Everything here is public and secret-free by design.
 
@@ -32,8 +32,15 @@ $ProgressPreference = 'SilentlyContinue'  # a visible progress bar makes Invoke-
 # Pinned, not "latest". A clip that renders wrong should be attributable to a
 # version, and HLAE tracks CS2 updates closely enough that floating would make
 # every render a different experiment.
-$HlaeVersion = '2.187.0'
-$HlaeUrl     = "https://github.com/advancedfx/advancedfx/releases/download/v$HlaeVersion/hlae.zip"
+#
+# 2.191.1 is the newest release GitHub marks as latest; the 2.192.x tags exist
+# but are pre-releases. The asset is named after the version with underscores,
+# hlae_2_191_1.zip, and there is no hlae.zip -- asking for one is a 404 that
+# arrives as a bare "Invoke-WebRequest : Not Found". Derived from $HlaeVersion
+# so bumping still means editing one line.
+$HlaeVersion = '2.191.1'
+$HlaeAsset   = "hlae_$($HlaeVersion -replace '\.', '_').zip"
+$HlaeUrl     = "https://github.com/advancedfx/advancedfx/releases/download/v$HlaeVersion/$HlaeAsset"
 
 $Root    = 'C:\fragvault'
 $LogDir  = Join-Path $Root 'logs'
@@ -44,6 +51,19 @@ New-Item -ItemType Directory -Force -Path $Root, $LogDir, (Join-Path $Root 'demo
 Start-Transcript -Path (Join-Path $LogDir 'bootstrap.log') -Append | Out-Null
 
 function Write-Step($msg) { Write-Host "=== $msg" }
+
+# choco is a native command, so a failed package does NOT trip
+# $ErrorActionPreference. A sysinternals checksum failure once sailed straight
+# past it and the script carried on building a half-installed box, reporting
+# nothing until something later fell over. Check the exit code explicitly.
+# 3010 is "installed, reboot pending" and is a success.
+function Invoke-Choco {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Packages)
+    choco install -y --no-progress @Packages
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+        throw "choco install $($Packages -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
 
 # TLS 1.2 -- Windows Server 2022 defaults are fine, but the Chocolatey
 # bootstrapper and GitHub both fail obscurely if a stale default wins.
@@ -70,16 +90,32 @@ if (-not (Get-Command choco.exe -ErrorAction SilentlyContinue)) {
     $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 }
 
-Write-Step 'Installing ffmpeg, 7zip, sysinternals'
+Write-Step 'Installing ffmpeg and 7zip'
 # ffmpeg is the encoder HLAE pipes raw frames into -- mirv_streams does not
-# encode anything itself. sysinternals is here for Autologon.exe.
-choco install -y --no-progress ffmpeg 7zip sysinternals
+# encode anything itself.
+Invoke-Choco ffmpeg 7zip
+
+# --- Autologon ---------------------------------------------------------------
+# One 100 KB binary instead of the chocolatey sysinternals package, which pulls
+# the whole 191 MB suite. Microsoft republishes SysinternalsSuite.zip in place
+# without changing its URL, so the package's pinned sha256 goes stale and the
+# install dies on a checksum mismatch -- which is exactly what it did here.
+# Autologon is the only thing in that suite this box needs, and fetching it
+# straight from Microsoft's own host has no stale checksum to trip over.
+#
+# Unpinned by nature: live.sysinternals.com always serves current. Acceptable
+# for a tool that is run by hand once and touches nothing a render depends on.
+Write-Step 'Installing Autologon'
+$autologon = Join-Path $Root 'Autologon64.exe'
+if (-not (Test-Path $autologon)) {
+    Invoke-WebRequest -Uri 'https://live.sysinternals.com/Autologon64.exe' -OutFile $autologon -UseBasicParsing
+}
 
 # --- Steam -------------------------------------------------------------------
 Write-Step 'Installing the Steam client'
 # The full client, not just steamcmd: CS2 refuses to launch without a running,
 # logged-in Steam client, whatever steamcmd has downloaded.
-choco install -y --no-progress steam
+Invoke-Choco steam
 
 # --- HLAE --------------------------------------------------------------------
 Write-Step "Installing HLAE $HlaeVersion"
@@ -153,7 +189,9 @@ Remaining manual steps (once, over RDP -- see docs/adr-003-render-vm.md):
      and Steam allows one game session per account, so sharing it breaks match
      discovery.
   2. Install CS2 (~35 GB) and let it finish.
-  3. Run `Autologon.exe` (installed with sysinternals) to enable auto-logon.
+  3. Run C:\fragvault\Autologon64.exe to enable auto-logon. It stores the
+     password in LSA secrets rather than the registry, which is why this is
+     done by hand and not from this script.
   4. Render one clip by hand to prove the box works, then capture the golden
      image with scripts/capture-golden-image.sh.
 

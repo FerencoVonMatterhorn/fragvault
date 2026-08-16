@@ -119,6 +119,19 @@ secrets in this file or any other.
   exit as `VMExtensionProvisioningError`. But the error carries only the first
   failure; for anything past it, read `C:\fragvault\logs\bootstrap.log` on the
   VM, or `az vm run-command show --instance-view`.
+- **HLAE release assets are named `hlae_2_191_1.zip`, not `hlae.zip`.** The
+  script derives the filename from `$HlaeVersion`; don't hand-write a URL. A
+  wrong asset name 404s and surfaces only as `Invoke-WebRequest : Not Found`,
+  which looks like a dead pin rather than a typo — the tag was always valid.
+  GitHub's *latest* is `2.191.1`; the `2.192.x` tags exist but are pre-releases.
+- **Don't install the chocolatey `sysinternals` package.** Microsoft
+  republishes `SysinternalsSuite.zip` in place, so the package's pinned sha256
+  goes stale and the install fails on a checksum mismatch. The script pulls the
+  one 100 KB `Autologon64.exe` it actually needs instead of the 191 MB suite.
+- **`choco` failures don't trip `$ErrorActionPreference`** — it's a native
+  command, so a failed package returns non-zero and the script sails on
+  building a half-installed box. Install through the `Invoke-Choco` helper,
+  which checks `$LASTEXITCODE` (treating 3010, "reboot pending", as success).
 - The bootstrap script is embedded into the run command's source by `file()`,
   so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
   or Windows and CI hash differently and re-run the bootstrap every apply.
