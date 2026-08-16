@@ -131,9 +131,19 @@ if (-not (Test-Path $hlaeMarker)) {
     Write-Host "HLAE $HlaeVersion already installed"
 }
 
-if (-not (Test-Path (Join-Path $HlaeDir 'AfxHookSource2.dll'))) {
-    Write-Warning "AfxHookSource2.dll not found in $HlaeDir -- the release layout may have changed. CS2 recording needs the Source 2 hook, not AfxHookSource.dll."
+# The Source 2 hook is in x64\, not at the root. The root holds the Source 1
+# AfxHookSource.dll next to an AfxHookSource2_changelog.xml, which makes a
+# root-level check look correct and fail anyway. CS2 is 64-bit; x64 is the one
+# that matters.
+#
+# Fatal rather than a warning: Write-Warning does not fail a run, so a missing
+# hook used to exit 0 and hand back a box that cannot record anything -- the
+# failure would surface much later, as a render that produces no video.
+$hook = Join-Path $HlaeDir 'x64\AfxHookSource2.dll'
+if (-not (Test-Path $hook)) {
+    throw "AfxHookSource2.dll not found at $hook. HLAE $HlaeVersion extracted but the Source 2 hook is missing, so this box cannot record CS2. Check whether the release layout changed."
 }
+Write-Host "Source 2 hook present: $hook"
 
 # --- Console session hygiene -------------------------------------------------
 # This box has no monitor, and rendering happens in the auto-logon console

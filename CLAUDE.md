@@ -132,6 +132,16 @@ secrets in this file or any other.
   command, so a failed package returns non-zero and the script sails on
   building a half-installed box. Install through the `Invoke-Choco` helper,
   which checks `$LASTEXITCODE` (treating 3010, "reboot pending", as success).
+- **A failed run command create orphans the Azure object.** Terraform drops the
+  resource from state but the `runCommands/bootstrap` object stays on the VM, so
+  the next apply says `A resource with the ID ... already exists`. Same trap the
+  failed CustomScriptExtension left. Check both sides — `terraform state list`
+  against `az vm run-command list` — then either `terraform import` it or delete
+  it and let the apply recreate. The script is idempotent, so recreating is
+  cheap and needs no secrets.
+- **`AfxHookSource2.dll` lives in `C:\hlae\x64\`, not the root.** The root has
+  the Source 1 `AfxHookSource.dll` beside an `AfxHookSource2_changelog.xml`,
+  which makes a root check look right and fail anyway.
 - The bootstrap script is embedded into the run command's source by `file()`,
   so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
   or Windows and CI hash differently and re-run the bootstrap every apply.
