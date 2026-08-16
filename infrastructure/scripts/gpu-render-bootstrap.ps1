@@ -1,10 +1,19 @@
 # Defines the GPU render VM, the way cloud-init/hosting.yaml.tftpl defines the
 # hosting VM. Run by the azurerm_virtual_machine_run_command in
-# vm_gpu_render.tf, which embeds this file verbatim — editing it changes the
+# vm_gpu_render.tf, which embeds this file verbatim -- editing it changes the
 # run command's source and re-runs it on the next apply.
 #
 # It must stay idempotent: the run command re-runs on every edit to this file,
 # and a re-run must not undo a working machine.
+#
+# KEEP THIS FILE PURE ASCII -- no em dashes, no smart quotes, nothing above
+# U+007F. Run Command writes these bytes to disk and lets Windows PowerShell 5.1
+# open the file, and a file with no BOM is decoded as Windows-1252 rather than
+# UTF-8. An em dash then arrives as three CP1252 characters ending in 0x94,
+# which is a right double quotation mark and which PowerShell honours as a
+# string delimiter -- so a dash inside a double-quoted string silently ends the
+# string and the parse dies somewhere else entirely with MissingEndCurlyBrace.
+# A `precondition` in vm_gpu_render.tf fails the plan if this slips.
 #
 # What it deliberately does NOT do:
 #   - log Steam in, or download CS2. Steam Guard is far easier to clear by hand
@@ -36,7 +45,7 @@ Start-Transcript -Path (Join-Path $LogDir 'bootstrap.log') -Append | Out-Null
 
 function Write-Step($msg) { Write-Host "=== $msg" }
 
-# TLS 1.2 — Windows Server 2022 defaults are fine, but the Chocolatey
+# TLS 1.2 -- Windows Server 2022 defaults are fine, but the Chocolatey
 # bootstrapper and GitHub both fail obscurely if a stale default wins.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -50,7 +59,7 @@ $gpu = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'Ra
 if ($gpu) {
     Write-Host "GPU present: $($gpu.Name) driver $($gpu.DriverVersion)"
 } else {
-    Write-Warning 'No AMD GPU found yet. If this persists after a reboot, the AmdGpuDriverWindows extension did not apply — check `az vm extension list`.'
+    Write-Warning 'No AMD GPU found yet. If this persists after a reboot, the AmdGpuDriverWindows extension did not apply -- check `az vm extension list`.'
 }
 
 # --- Package manager ---------------------------------------------------------
@@ -62,7 +71,7 @@ if (-not (Get-Command choco.exe -ErrorAction SilentlyContinue)) {
 }
 
 Write-Step 'Installing ffmpeg, 7zip, sysinternals'
-# ffmpeg is the encoder HLAE pipes raw frames into — mirv_streams does not
+# ffmpeg is the encoder HLAE pipes raw frames into -- mirv_streams does not
 # encode anything itself. sysinternals is here for Autologon.exe.
 choco install -y --no-progress ffmpeg 7zip sysinternals
 
@@ -87,7 +96,7 @@ if (-not (Test-Path $hlaeMarker)) {
 }
 
 if (-not (Test-Path (Join-Path $HlaeDir 'AfxHookSource2.dll'))) {
-    Write-Warning "AfxHookSource2.dll not found in $HlaeDir — the release layout may have changed. CS2 recording needs the Source 2 hook, not AfxHookSource.dll."
+    Write-Warning "AfxHookSource2.dll not found in $HlaeDir -- the release layout may have changed. CS2 recording needs the Source 2 hook, not AfxHookSource.dll."
 }
 
 # --- Console session hygiene -------------------------------------------------
@@ -126,7 +135,7 @@ foreach ($key in @($escAdmin, $escUser)) {
 # --- Firewall ----------------------------------------------------------------
 # The render agent will listen here. The agent itself is a later step; the rule
 # is harmless now and means the machine doesn't need touching again for it.
-# Scoped to the VNet — the NSG already blocks everything but RDP from outside,
+# Scoped to the VNet -- the NSG already blocks everything but RDP from outside,
 # and this keeps the box closed even if that ever loosens.
 Write-Step 'Opening the render agent port to the VNet'
 if (-not (Get-NetFirewallRule -Name 'FragVaultRenderAgent' -ErrorAction SilentlyContinue)) {
@@ -138,7 +147,7 @@ if (-not (Get-NetFirewallRule -Name 'FragVaultRenderAgent' -ErrorAction Silently
 Write-Step 'Bootstrap complete'
 Write-Host @'
 
-Remaining manual steps (once, over RDP — see docs/adr-003-render-vm.md):
+Remaining manual steps (once, over RDP -- see docs/adr-003-render-vm.md):
   1. Log the Steam client in with the DEDICATED render account. It must not be
      the gc-sidecar's account: the sidecar holds gamesPlayed([730]) permanently
      and Steam allows one game session per account, so sharing it breaks match

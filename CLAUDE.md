@@ -107,11 +107,18 @@ secrets in this file or any other.
   with `The command line is too long.` having never launched PowerShell. It
   looks exactly like a broken script — nothing is written to the VM, not even
   `C:\fragvault`. Don't go back to CSE, and don't try to fit under the cap.
-- **A green apply does not mean the bootstrap worked.** Unlike a failed
-  extension, a non-zero exit from a run command doesn't fail the apply —
-  Terraform records it in `instance_view` and moves on. Check the transcript at
-  `C:\fragvault\logs\bootstrap.log` on the VM, or
-  `az vm run-command show --instance-view`.
+- **Keep `gpu-render-bootstrap.ps1` pure ASCII.** Run Command writes the script
+  to disk and lets Windows PowerShell 5.1 open it, and a BOM-less file is
+  decoded as Windows-1252, not UTF-8. An em dash arrives as three CP1252
+  characters ending in `0x94` — a right double quotation mark, which PowerShell
+  treats as a string delimiter. One dash inside a double-quoted string ended the
+  string early and the parse died 30 lines away with `MissingEndCurlyBrace`
+  pointing at an `if` that was fine. CSE's UTF-16LE base64 hid this; Run Command
+  doesn't. A `precondition` on the resource now fails the plan instead.
+- A failed script **does** fail the apply — the run command surfaces a non-zero
+  exit as `VMExtensionProvisioningError`. But the error carries only the first
+  failure; for anything past it, read `C:\fragvault\logs\bootstrap.log` on the
+  VM, or `az vm run-command show --instance-view`.
 - The bootstrap script is embedded into the run command's source by `file()`,
   so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
   or Windows and CI hash differently and re-run the bootstrap every apply.

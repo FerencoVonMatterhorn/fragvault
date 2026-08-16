@@ -188,12 +188,16 @@ resource "azurerm_virtual_machine_extension" "gpu_render_amd_driver" {
 # the script holds no secrets, and reading it back off the VM is worth more
 # than hiding it. The Steam login is done by hand once — see the ADR.
 #
-# One behavioural difference worth knowing before it costs an afternoon: a
-# non-zero exit from the script does NOT fail the apply the way a failed
-# extension does. Terraform records the result in `instance_view` and moves on,
-# so a green apply is not proof the bootstrap succeeded. Check the transcript at
-# C:\fragvault\logs\bootstrap.log, or read the exit code back with
-# `az vm run-command show --instance-view`.
+# What CSE's UTF-16LE base64 was quietly buying, and this is not: an explicit
+# encoding. Run Command writes the script to disk and lets PowerShell open it,
+# and Windows PowerShell 5.1 decodes a BOM-less file as Windows-1252, so any
+# non-ASCII byte in the script is corrupted before it is ever parsed. Hence the
+# precondition below and the ASCII rule at the top of the script itself.
+#
+# A failed script does fail the apply: the run command surfaces a non-zero exit
+# as VMExtensionProvisioningError and Terraform errors on it. The error carries
+# only the first parse or runtime failure, though — for anything past that, read
+# the transcript at C:\fragvault\logs\bootstrap.log on the VM.
 resource "azurerm_virtual_machine_run_command" "gpu_render_bootstrap" {
   name               = "bootstrap"
   location           = azurerm_resource_group.this.location
@@ -217,6 +221,16 @@ resource "azurerm_virtual_machine_run_command" "gpu_render_bootstrap" {
   timeouts {
     create = "60m"
     update = "60m"
+  }
+
+  # Turns a corrupted-encoding bug into a plan failure with a name. Without it
+  # the only symptom is a PowerShell parse error on the VM, reported against a
+  # line that is nowhere near the character that caused it.
+  lifecycle {
+    precondition {
+      condition     = can(regex("^[[:ascii:]]*$", file("${path.module}/scripts/gpu-render-bootstrap.ps1")))
+      error_message = "gpu-render-bootstrap.ps1 must be pure ASCII. Windows PowerShell reads the BOM-less file Run Command writes as Windows-1252, so an em dash or smart quote becomes a stray quotation mark and breaks parsing. Replace the character with its ASCII equivalent."
+    }
   }
 }
 
