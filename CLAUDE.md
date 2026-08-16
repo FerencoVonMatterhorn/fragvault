@@ -92,6 +92,14 @@ secrets in this file or any other.
   — which is the only kind that survives Steam's machine-bound login. Hence
   `scripts/capture-golden-image.sh` and a documented `az vm create` + `terraform
   import` restore path. Don't "fix" this by generalizing the image.
+- **Windows computer names cap at 15 characters**, so the GPU VM sets an
+  explicit `computer_name` — the Azure resource name is 28 and can't be the
+  default the way it is on the Linux box. The provider only checks this at
+  apply time, so the plan passes either way.
+- The auto-shutdown backstop needs the **`Microsoft.DevTestLab` provider
+  registered** (`az provider register --namespace Microsoft.DevTestLab`).
+  Unregistered, it fails with the misleading `(SubscriptionNotFound)` from the
+  README rather than anything about DevTestLab.
 - The bootstrap script is embedded into the extension's settings by `file()`,
   so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
   or Windows and CI hash differently and re-run the bootstrap every apply.

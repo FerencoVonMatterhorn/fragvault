@@ -94,12 +94,22 @@ variable "gpu_render_admin_password" {
 }
 
 resource "azurerm_windows_virtual_machine" "gpu_render" {
-  name                  = "vm-${local.name_prefix}-gpu-render"
-  location              = azurerm_resource_group.this.location
-  resource_group_name   = azurerm_resource_group.this.name
-  size                  = var.gpu_render_vm_size
-  admin_username        = var.admin_username
-  admin_password        = var.gpu_render_admin_password
+  name                = "vm-${local.name_prefix}-gpu-render"
+  location            = azurerm_resource_group.this.location
+  resource_group_name = azurerm_resource_group.this.name
+  size                = var.gpu_render_vm_size
+  admin_username      = var.admin_username
+  admin_password      = var.gpu_render_admin_password
+
+  # Windows computer names are NetBIOS names and cap at 15 characters, so the
+  # Azure resource name can't be reused as the default the way it is on the
+  # Linux box — "vm-fragvault-prod-gpu-render" is 28. The provider only checks
+  # this at apply time, so a plan will happily pass without it.
+  #
+  # This lands in the specialized golden image, so changing it later means
+  # recreating both the VM and the image. "fv-prod-gpu" is 11.
+  computer_name = substr("fv-${var.environment}-gpu", 0, 15)
+
   network_interface_ids = [azurerm_network_interface.gpu_render.id]
   tags                  = local.common_tags
 
