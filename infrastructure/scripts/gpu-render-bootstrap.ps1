@@ -1,10 +1,10 @@
 # Defines the GPU render VM, the way cloud-init/hosting.yaml.tftpl defines the
-# hosting VM. Run by the CustomScriptExtension in vm_gpu_render.tf, which
-# embeds this file verbatim — editing it changes the extension settings and
-# re-runs it on the next apply.
+# hosting VM. Run by the azurerm_virtual_machine_run_command in
+# vm_gpu_render.tf, which embeds this file verbatim — editing it changes the
+# run command's source and re-runs it on the next apply.
 #
-# It must stay idempotent: the extension re-runs on every settings change, and
-# a re-run must not undo a working machine.
+# It must stay idempotent: the run command re-runs on every edit to this file,
+# and a re-run must not undo a working machine.
 #
 # What it deliberately does NOT do:
 #   - log Steam in, or download CS2. Steam Guard is far easier to clear by hand

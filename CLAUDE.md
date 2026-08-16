@@ -100,7 +100,19 @@ secrets in this file or any other.
   registered** (`az provider register --namespace Microsoft.DevTestLab`).
   Unregistered, it fails with the misleading `(SubscriptionNotFound)` from the
   README rather than anything about DevTestLab.
-- The bootstrap script is embedded into the extension's settings by `file()`,
+- **The bootstrap runs via `azurerm_virtual_machine_run_command`, not
+  CustomScriptExtension.** CSE passes its script as a `commandToExecute` string
+  that the guest agent hands to cmd.exe, and cmd.exe caps a command line at
+  8191 characters; the script base64-encoded as UTF-16LE was 21128, so it died
+  with `The command line is too long.` having never launched PowerShell. It
+  looks exactly like a broken script — nothing is written to the VM, not even
+  `C:\fragvault`. Don't go back to CSE, and don't try to fit under the cap.
+- **A green apply does not mean the bootstrap worked.** Unlike a failed
+  extension, a non-zero exit from a run command doesn't fail the apply —
+  Terraform records it in `instance_view` and moves on. Check the transcript at
+  `C:\fragvault\logs\bootstrap.log` on the VM, or
+  `az vm run-command show --instance-view`.
+- The bootstrap script is embedded into the run command's source by `file()`,
   so its bytes are part of the plan — `.ps1` is pinned to LF in `.gitattributes`
   or Windows and CI hash differently and re-run the bootstrap every apply.
 - **Demos are now retained** to the `demos` blob container before the local

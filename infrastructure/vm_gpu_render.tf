@@ -165,31 +165,56 @@ resource "azurerm_virtual_machine_extension" "gpu_render_amd_driver" {
 
 # The Windows counterpart of cloud-init/hosting.yaml.tftpl. Windows has no
 # cloud-init: custom_data on a Windows VM is written to disk and never
-# executed, so the extension is the mechanism.
+# executed, so something has to run the script for us.
 #
-# The script is embedded rather than fetched from a URL, so an apply depends on
-# nothing but this repo. textencodebase64 with UTF-16LE is required —
-# PowerShell's -EncodedCommand rejects UTF-8 base64, and Terraform's plain
-# base64encode produces UTF-8.
+# Run Command and NOT CustomScriptExtension. CSE takes its script as a
+# `commandToExecute` string that the guest agent hands to cmd.exe, and cmd.exe
+# caps a command line at 8191 characters. The script base64-encoded as UTF-16LE
+# (which -EncodedCommand requires) came to 21128, so the extension failed with
+# "The command line is too long." before PowerShell was ever launched — a
+# failure that looks like a broken script but never executed a line of one.
+# Trimming the script under the cap would only defer this.
 #
-# It goes in `settings` (public) and not `protected_settings` on purpose: the
-# script holds no secrets, and being able to read it back off the VM is worth
-# more than hiding it. The Steam login is done by hand once — see the ADR.
-resource "azurerm_virtual_machine_extension" "gpu_render_bootstrap" {
-  name                       = "bootstrap"
-  virtual_machine_id         = azurerm_windows_virtual_machine.gpu_render.id
-  publisher                  = "Microsoft.Compute"
-  type                       = "CustomScriptExtension"
-  type_handler_version       = "1.10"
-  auto_upgrade_minor_version = true
-  tags                       = local.common_tags
+# Run Command ships the script in the request body instead; the agent writes it
+# to disk and invokes PowerShell on the file, so there is no command line to
+# overflow and no encoding dance. It stays embedded from the repo rather than
+# fetched from a URL, so an apply still depends on nothing but this checkout.
+#
+# `source.script` is stored in plain text and readable from the portal, which
+# is the same trade CSE's public `settings` made and is still the right one:
+# the script holds no secrets, and reading it back off the VM is worth more
+# than hiding it. The Steam login is done by hand once — see the ADR.
+#
+# One behavioural difference worth knowing before it costs an afternoon: a
+# non-zero exit from the script does NOT fail the apply the way a failed
+# extension does. Terraform records the result in `instance_view` and moves on,
+# so a green apply is not proof the bootstrap succeeded. Check the transcript at
+# C:\fragvault\logs\bootstrap.log, or read the exit code back with
+# `az vm run-command show --instance-view`.
+resource "azurerm_virtual_machine_run_command" "gpu_render_bootstrap" {
+  name               = "bootstrap"
+  location           = azurerm_resource_group.this.location
+  virtual_machine_id = azurerm_windows_virtual_machine.gpu_render.id
+  tags               = local.common_tags
 
   # The driver first, so the script can assert the GPU is present.
   depends_on = [azurerm_virtual_machine_extension.gpu_render_amd_driver]
 
-  settings = jsonencode({
-    commandToExecute = "powershell.exe -ExecutionPolicy Unrestricted -NoProfile -EncodedCommand ${textencodebase64(file("${path.module}/scripts/gpu-render-bootstrap.ps1"), "UTF-16LE")}"
-  })
+  source {
+    script = file("${path.module}/scripts/gpu-render-bootstrap.ps1")
+  }
+
+  # How long TERRAFORM waits, not how long the script may run — azurerm 3.117
+  # does not expose the run command's own timeoutInSeconds, so the script is
+  # bounded by the platform default whatever we put here. Raised from the 30m
+  # default because a cold run is the slow case: Chocolatey pulls ffmpeg, 7zip,
+  # sysinternals and the whole Steam client, and HLAE comes from GitHub. If
+  # Terraform gives up first the script keeps running on the VM regardless, so
+  # a timeout here means "go read the transcript", not "it died".
+  timeouts {
+    create = "60m"
+    update = "60m"
+  }
 }
 
 # --- Permissions the VM needs on the rest of the subscription ---------------
