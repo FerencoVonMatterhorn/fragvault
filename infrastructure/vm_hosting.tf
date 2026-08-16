@@ -97,6 +97,16 @@ resource "azurerm_linux_virtual_machine" "hosting" {
   network_interface_ids = [azurerm_network_interface.hosting.id]
   tags                  = local.common_tags
 
+  # Set explicitly only to stop a perpetual `true -> false` in every plan. The
+  # provider declares this Optional with `Default: false` and no Computed, so
+  # omitting it makes Terraform read the config as an actual `false` — while
+  # Azure turns platform updates on by itself and reports `true`. The diff can
+  # never converge, and it follows the config rather than any one machine's
+  # state, so it shows up for everyone. Matching Azure is also what we want:
+  # `false` would mean asking Azure to stop updating the VM agent. Not
+  # ForceNew, so this is an in-place no-op and does not touch the VM.
+  vm_agent_platform_updates_enabled = true
+
   admin_ssh_key {
     username   = var.admin_username
     public_key = var.ssh_public_key

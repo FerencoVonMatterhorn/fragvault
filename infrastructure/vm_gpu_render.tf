@@ -113,6 +113,9 @@ resource "azurerm_windows_virtual_machine" "gpu_render" {
   network_interface_ids = [azurerm_network_interface.gpu_render.id]
   tags                  = local.common_tags
 
+  # Same provider quirk as the hosting VM — see the comment there.
+  vm_agent_platform_updates_enabled = true
+
   # Windows Server 2022 is on Microsoft's supported list for the NVv4 AMD
   # driver. Windows 11 would also work but needs a client licence for no
   # benefit here — nothing about this box is interactive except maintenance.
