@@ -3,15 +3,13 @@
 # lowercase, alphanumeric only, <=24 chars.
 
 resource "random_string" "storage_suffix" {
-  count   = var.enable_blob_storage ? 1 : 0
   length  = 6
   special = false
   upper   = false
 }
 
 resource "azurerm_storage_account" "clips" {
-  count                    = var.enable_blob_storage ? 1 : 0
-  name                     = substr("st${replace(var.project_name, "-", "")}${random_string.storage_suffix[0].result}", 0, 24)
+  name                     = substr("st${replace(var.project_name, "-", "")}${random_string.storage_suffix.result}", 0, 24)
   resource_group_name      = azurerm_resource_group.this.name
   location                 = azurerm_resource_group.this.location
   account_tier             = "Standard"
@@ -31,9 +29,8 @@ resource "azurerm_storage_account" "clips" {
 # Rendered highlight clips. Served to users via short-lived SAS URLs, never by
 # public listing.
 resource "azurerm_storage_container" "clips" {
-  count                 = var.enable_blob_storage ? 1 : 0
   name                  = "clips"
-  storage_account_name  = azurerm_storage_account.clips[0].name
+  storage_account_name  = azurerm_storage_account.clips.name
   container_access_type = "private"
 }
 
@@ -42,9 +39,8 @@ resource "azurerm_storage_container" "clips" {
 # expires after a few weeks — so without this container a highlight can only
 # ever be rendered in the window right after it was analysed.
 resource "azurerm_storage_container" "demos" {
-  count                 = var.enable_blob_storage ? 1 : 0
   name                  = "demos"
-  storage_account_name  = azurerm_storage_account.clips[0].name
+  storage_account_name  = azurerm_storage_account.clips.name
   container_access_type = "private"
 }
 
@@ -54,8 +50,7 @@ resource "azurerm_storage_container" "demos" {
 # deliberately avoided because rehydration takes hours and would turn a render
 # into an overnight job.
 resource "azurerm_storage_management_policy" "clips" {
-  count              = var.enable_blob_storage ? 1 : 0
-  storage_account_id = azurerm_storage_account.clips[0].id
+  storage_account_id = azurerm_storage_account.clips.id
 
   rule {
     name    = "demos-cool-then-keep"

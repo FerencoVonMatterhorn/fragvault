@@ -27,7 +27,7 @@ Sign in with Steam, onboard once, and have your recent matches discovered by wal
 The game coordinator resolves a sharecode to a demo URL, the demo is parsed, and highlights fall out: multi-kills, clutches, opening duels and defuses, each with a clip window. Every match gets a scoreboard (K/A/D, ADR, HS%, MVPs) and a round-by-round history. Parsing is separated from detection, so the rules that decide what counts as a clutch are unit-tested without a demo fixture.
 
 **Phase 3 — Create highlights** 🚧 *in progress*
-Turn those timestamps into actual video. There is no headless CS2 and no server-side movie mode, so this means a Windows GPU VM running the real game against the real demo, recording with [HLAE](https://github.com/advancedfx/advancedfx) piped into ffmpeg. Terraform builds and configures that box today (`enable_gpu_render_vm`), and every parsed demo is now retained in blob storage so a clip can still be rendered months later, long after Valve has expired the download URL.
+Turn those timestamps into actual video. There is no headless CS2 and no server-side movie mode, so this means a Windows GPU VM running the real game against the real demo, recording with [HLAE](https://github.com/advancedfx/advancedfx) piped into ffmpeg. Terraform builds and configures that box today, and every parsed demo is now retained in blob storage so a clip can still be rendered months later, long after Valve has expired the download URL.
 
 The VM is started and deallocated rather than created and destroyed — deallocated it bills nothing but its disk, and starting takes 90 seconds against 45 minutes to provision one from scratch. Left running it costs ~EUR 320/month, so the cost model depends entirely on it being asleep. Still to come: the render queue, the agent on the VM, and the API that ties them together. See [ADR-003](docs/adr-003-render-vm.md).
 
@@ -52,7 +52,7 @@ Smaller things, roughly in the order they'll start to hurt:
 - `frontend/` — React + TypeScript + Vite
 - `backend/` — Go HTTP API, demo parsing and highlight detection, Postgres persistence
 - `gc-sidecar/` — thin Node service that resolves sharecodes to demo URLs via the CS2 game coordinator
-- `infrastructure/` — Terraform for all infra (the hosting VM and blob storage are enabled by default; the GPU render VM sits behind `enable_gpu_render_vm` so it can't bill before it's wanted)
+- `infrastructure/` — Terraform for all infra. `terraform.tfvars` holds this deployment's values and is committed; only the SSH key, the admin CIDR and the render VM's password come from CI secrets
 - `infrastructure/scripts/` — the GPU VM's bootstrap script, and the golden-image capture that Terraform structurally can't own
 - `deploy/` — compose file and Caddyfile that run the app on the VM
 - `docs/` — architecture decision records

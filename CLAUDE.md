@@ -85,8 +85,8 @@ secrets in this file or any other.
   eventually notice. This is the other reason the account is disposable.
 - **Creating the VM needs more than Contributor.** The CI service principal
   gets subscription-scope Contributor from `bootstrap-tfstate.sh`, which cannot
-  create role assignments. `enable_gpu_render_vm` also needs *Role Based Access
-  Control Administrator* on it, or the apply fails with `AuthorizationFailed`.
+  create role assignments. It also needs *Role Based Access Control
+  Administrator*, or the apply fails with `AuthorizationFailed`.
 - **`azurerm_windows_virtual_machine` cannot create from the golden image.** It
   always emits an `osProfile`, and Azure rejects that for *specialized* images
   — which is the only kind that survives Steam's machine-bound login. Hence

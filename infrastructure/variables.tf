@@ -1,7 +1,13 @@
+# The contract: what can be set, and what the constraint behind each one is.
+# The values themselves live in terraform.tfvars, which is committed — this is
+# a single-environment repo and there is nothing secret in the answers.
+#
+# The two exceptions, which have no default and come from CI secrets, are
+# marked below. Everything else is safe to read in public.
+
 variable "project_name" {
   description = "Short slug used to name/tag every resource."
   type        = string
-  default     = "fragvault"
 }
 
 variable "location" {
@@ -13,48 +19,11 @@ variable "location" {
   # this subscription at all — only confidential-compute and GPU families,
   # at 6-10x the price. swedencentral has the full Bsv2/Basv2 range
   # unrestricted and prices ~10% under westeurope.
-  default = "swedencentral"
 }
 
 variable "environment" {
   description = "Deployment environment tag (e.g. dev, staging, prod). Ends up in every resource name and tag."
   type        = string
-  default     = "prod"
-}
-
-# --- Phase toggles --------------------------------------------------------
-# Phase 1 only needs the hosting VM. The function app, GPU render VM, and
-# blob storage are modeled now (per the full architecture) but left disabled
-# by default so `terraform apply` today doesn't provision — and start
-# billing for — pieces the app doesn't use yet, especially the GPU VM, which
-# is the expensive one. Flip these on when each phase actually starts.
-
-variable "enable_hosting_vm" {
-  description = "Small Linux VM hosting the Phase 1 frontend+backend."
-  type        = bool
-  default     = true
-}
-
-variable "enable_blob_storage" {
-  description = "Storage account + containers for retained demos and rendered highlight clips."
-  type        = bool
-  # On by default from Phase 3a: the backend uploads every parsed demo to the
-  # `demos` container, and a match analysed without that is unrenderable
-  # forever once Valve expires the URL. This costs cents per month and buys
-  # back the entire back catalogue.
-  default = true
-}
-
-variable "enable_function_app" {
-  description = "Azure Function App for demo rendering (later phase)."
-  type        = bool
-  default     = false
-}
-
-variable "enable_gpu_render_vm" {
-  description = "GPU VM that runs CS2 to render highlight clips (later phase, most expensive resource here)."
-  type        = bool
-  default     = false
 }
 
 # --- Hosting VM -------------------------------------------------------------
@@ -69,18 +38,23 @@ variable "hosting_vm_size" {
   # and 1 GB, and at ~EUR 0.0085/hr it is cheaper than a B1s was while giving
   # twice the cores. The ARM equivalent (B2pts_v2) saves another ~EUR 1/month
   # but needs an arm64 image and an arm64 Go build, which isn't worth it yet.
-  default = "Standard_B2ats_v2"
 }
 
 variable "admin_username" {
-  description = "Admin username for the hosting VM."
+  description = "Admin username for the hosting VM and the GPU render VM."
   type        = string
-  default     = "fragvault"
 }
 
 variable "ssh_public_key" {
   description = "RSA SSH public key for admin access to the hosting VM. Must be RSA — Azure rejects ed25519 for Linux VM provisioning."
   type        = string
+
+  # FROM CI SECRET: HOSTING_VM_SSH_PUBLIC_KEY.
+  #
+  # A public key is safe to commit, and this could move to terraform.tfvars —
+  # but changing the value forces replacement of the hosting VM, taking the
+  # Postgres volume and Caddy's certificates with it. Moving it is therefore a
+  # copy-the-exact-current-value job, not a retype-it-from-memory job.
 
   # Caught here rather than by the provider, which fails mid-plan with
   # "the provided ssh-ed25519 SSH key is not supported" and no hint about
@@ -93,14 +67,21 @@ variable "ssh_public_key" {
 }
 
 variable "allowed_ssh_source_ip" {
-  description = "CIDR allowed to reach the hosting VM on port 22 (lock this to your own IP, not 0.0.0.0/0)."
+  description = "CIDR allowed to reach the hosting VM on port 22 and the GPU render VM on 3389. Lock this to your own address, not 0.0.0.0/0."
   type        = string
+
+  # FROM CI SECRET: ADMIN_SOURCE_IP_CIDR.
+  #
+  # Deliberately not committed. It isn't a credential — reaching either box
+  # still needs the SSH key or the RDP password — but publishing it on a public
+  # repo advertises the one address worth attacking from, and reveals roughly
+  # where the admin lives.
 }
 
-# --- GPU render VM (later phase) --------------------------------------------
+# --- GPU render VM ----------------------------------------------------------
 
 variable "gpu_render_vm_size" {
-  description = "VM size for the GPU box that runs CS2 to render highlight clips. Confirm quota AND availability in your region before enabling — a fresh subscription has zero N-series quota, and the SkuNotAvailable trap that bit the hosting VM applies to GPU families too."
+  description = "VM size for the GPU box that runs CS2 to render highlight clips. Confirm quota AND availability in your region — a fresh subscription has zero N-series quota, and the SkuNotAvailable trap that bit the hosting VM applies to GPU families too."
   type        = string
 
   # NV4as_v4: 4 vCPU, 14 GiB RAM, 1/8th of a Radeon Instinct MI25 — a 2 GiB
@@ -118,5 +99,4 @@ variable "gpu_render_vm_size" {
   #   Standard_NG8ads_V620_v1 AMD V620 1/4th, 8 GiB VRAM. The family Microsoft
   #                           names for gaming workloads. EUR 1.05/hr Windows.
   # See docs/adr-003-render-vm.md.
-  default = "Standard_NV4as_v4"
 }

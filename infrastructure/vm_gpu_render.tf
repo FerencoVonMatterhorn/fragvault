@@ -1,8 +1,7 @@
 # GPU VM that runs a real CS2 client against a demo file and records highlight
-# clips with HLAE. Disabled by default (enable_gpu_render_vm = false) — at
-# EUR 0.4476/hr this is by far the most expensive resource in the config, and
-# leaving it running is ~EUR 320/month. Turning it on is a deliberate act; see
-# the workflow variable in terraform.yml.
+# clips with HLAE. At EUR 0.4476/hr this is by far the most expensive resource
+# in the config — running continuously it is ~EUR 320/month, so the cost model
+# depends entirely on it being deallocated when idle.
 #
 # Lifecycle: Terraform owns exactly one VM. It is not created and destroyed per
 # job — it is started and deallocated. A deallocated VM bills nothing for
@@ -16,7 +15,6 @@
 # re-runs it. See docs/adr-003-render-vm.md.
 
 resource "azurerm_public_ip" "gpu_render" {
-  count               = var.enable_gpu_render_vm ? 1 : 0
   name                = "pip-${local.name_prefix}-gpu-render"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
@@ -26,7 +24,6 @@ resource "azurerm_public_ip" "gpu_render" {
 }
 
 resource "azurerm_network_security_group" "gpu_render" {
-  count               = var.enable_gpu_render_vm ? 1 : 0
   name                = "nsg-${local.name_prefix}-gpu-render"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
@@ -53,7 +50,6 @@ resource "azurerm_network_security_group" "gpu_render" {
 }
 
 resource "azurerm_network_interface" "gpu_render" {
-  count               = var.enable_gpu_render_vm ? 1 : 0
   name                = "nic-${local.name_prefix}-gpu-render"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
@@ -64,48 +60,47 @@ resource "azurerm_network_interface" "gpu_render" {
     # Reuses the hosting VNet/subnet, so this VM cannot exist without the
     # hosting VM. That is fine — the backend that will drive it lives there,
     # and a second VNet buys nothing while both boxes are in one region.
-    subnet_id                     = azurerm_subnet.hosting[0].id
+    subnet_id                     = azurerm_subnet.hosting.id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.gpu_render[0].id
+    public_ip_address_id          = azurerm_public_ip.gpu_render.id
   }
 }
 
 resource "azurerm_network_interface_security_group_association" "gpu_render" {
-  count                     = var.enable_gpu_render_vm ? 1 : 0
-  network_interface_id      = azurerm_network_interface.gpu_render[0].id
-  network_security_group_id = azurerm_network_security_group.gpu_render[0].id
+  network_interface_id      = azurerm_network_interface.gpu_render.id
+  network_security_group_id = azurerm_network_security_group.gpu_render.id
 }
 
 variable "gpu_render_admin_password" {
-  description = "Local admin password for the GPU render VM. Windows VMs require one. Pass via CI secret / a tfvars file that's gitignored — never commit a real value. Left with no default on purpose so `terraform apply` fails loudly instead of silently applying a placeholder password."
+  description = "Local admin password for the GPU render VM. Windows VMs require one."
   type        = string
   sensitive   = true
-  default     = null
 
-  # An unset GitHub secret interpolates to "" rather than disappearing, and
-  # Terraform assigns that empty string rather than treating the variable as
-  # unset — so this has to be gated on enable_gpu_render_vm. A plain
-  # "null or >= 12" rule fails the plan for the *entire* config, hosting VM
-  # included, on any repo that hasn't set the secret yet.
+  # FROM CI SECRET: GPU_RENDER_ADMIN_PASSWORD.
+  #
+  # The one value here that genuinely cannot live in terraform.tfvars. It is a
+  # live credential for a box with RDP exposed, and this repo is public. No
+  # default, so a missing value fails the plan rather than quietly applying
+  # something guessable.
   #
   # try() rather than a null guard because length(null) is an error in its own
-  # right, which surfaces as "Error in function call" instead of this message.
-  # 12 is Azure's own minimum for a Windows admin password.
+  # right, and surfaces as "Error in function call" instead of this message.
+  # An unset GitHub secret interpolates to "" rather than disappearing, so the
+  # empty case is the one actually worth naming. 12 is Azure's own minimum.
   validation {
-    condition     = !var.enable_gpu_render_vm || try(length(var.gpu_render_admin_password), 0) >= 12
-    error_message = "gpu_render_admin_password must be at least 12 characters when enable_gpu_render_vm is true. An empty value usually means the GPU_RENDER_ADMIN_PASSWORD repository secret is not set."
+    condition     = try(length(var.gpu_render_admin_password), 0) >= 12
+    error_message = "gpu_render_admin_password must be at least 12 characters. An empty value usually means the GPU_RENDER_ADMIN_PASSWORD repository secret is not set."
   }
 }
 
 resource "azurerm_windows_virtual_machine" "gpu_render" {
-  count                 = var.enable_gpu_render_vm ? 1 : 0
   name                  = "vm-${local.name_prefix}-gpu-render"
   location              = azurerm_resource_group.this.location
   resource_group_name   = azurerm_resource_group.this.name
   size                  = var.gpu_render_vm_size
   admin_username        = var.admin_username
   admin_password        = var.gpu_render_admin_password
-  network_interface_ids = [azurerm_network_interface.gpu_render[0].id]
+  network_interface_ids = [azurerm_network_interface.gpu_render.id]
   tags                  = local.common_tags
 
   # Windows Server 2022 is on Microsoft's supported list for the NVv4 AMD
@@ -149,9 +144,8 @@ resource "azurerm_windows_virtual_machine" "gpu_render" {
 # Microsoft publishes the only drivers supported on these VMs; installing one
 # from anywhere else is unsupported.
 resource "azurerm_virtual_machine_extension" "gpu_render_amd_driver" {
-  count                      = var.enable_gpu_render_vm ? 1 : 0
   name                       = "AmdGpuDriverWindows"
-  virtual_machine_id         = azurerm_windows_virtual_machine.gpu_render[0].id
+  virtual_machine_id         = azurerm_windows_virtual_machine.gpu_render.id
   publisher                  = "Microsoft.HpcCompute"
   type                       = "AmdGpuDriverWindows"
   type_handler_version       = "1.0"
@@ -172,9 +166,8 @@ resource "azurerm_virtual_machine_extension" "gpu_render_amd_driver" {
 # script holds no secrets, and being able to read it back off the VM is worth
 # more than hiding it. The Steam login is done by hand once — see the ADR.
 resource "azurerm_virtual_machine_extension" "gpu_render_bootstrap" {
-  count                      = var.enable_gpu_render_vm ? 1 : 0
   name                       = "bootstrap"
-  virtual_machine_id         = azurerm_windows_virtual_machine.gpu_render[0].id
+  virtual_machine_id         = azurerm_windows_virtual_machine.gpu_render.id
   publisher                  = "Microsoft.Compute"
   type                       = "CustomScriptExtension"
   type_handler_version       = "1.10"
@@ -198,10 +191,9 @@ resource "azurerm_virtual_machine_extension" "gpu_render_bootstrap" {
 # with AuthorizationFailed. Grant it once, by hand, before enabling this VM.
 
 resource "azurerm_role_assignment" "gpu_render_clips_writer" {
-  count                = var.enable_gpu_render_vm && var.enable_blob_storage ? 1 : 0
-  scope                = azurerm_storage_account.clips[0].id
+  scope                = azurerm_storage_account.clips.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_windows_virtual_machine.gpu_render[0].identity[0].principal_id
+  principal_id         = azurerm_windows_virtual_machine.gpu_render.identity[0].principal_id
 }
 
 # So the box can deallocate itself once the queue drains, without the backend
@@ -209,10 +201,9 @@ resource "azurerm_role_assignment" "gpu_render_clips_writer" {
 # the single deallocate/action this needs — a custom role definition would be
 # tighter, and is worth doing if this VM ever handles anything but renders.
 resource "azurerm_role_assignment" "gpu_render_self_deallocate" {
-  count                = var.enable_gpu_render_vm ? 1 : 0
-  scope                = azurerm_windows_virtual_machine.gpu_render[0].id
+  scope                = azurerm_windows_virtual_machine.gpu_render.id
   role_definition_name = "Virtual Machine Contributor"
-  principal_id         = azurerm_windows_virtual_machine.gpu_render[0].identity[0].principal_id
+  principal_id         = azurerm_windows_virtual_machine.gpu_render.identity[0].principal_id
 }
 
 # Backstop, not the mechanism. The orchestrator deallocates the VM when the
@@ -220,8 +211,7 @@ resource "azurerm_role_assignment" "gpu_render_self_deallocate" {
 # maintenance RDP session someone walked away from. Nightly, because a render
 # that is still going at 03:00 has already gone wrong.
 resource "azurerm_dev_test_global_vm_shutdown_schedule" "gpu_render" {
-  count                 = var.enable_gpu_render_vm ? 1 : 0
-  virtual_machine_id    = azurerm_windows_virtual_machine.gpu_render[0].id
+  virtual_machine_id    = azurerm_windows_virtual_machine.gpu_render.id
   location              = azurerm_resource_group.this.location
   enabled               = true
   daily_recurrence_time = "0300"

@@ -16,6 +16,13 @@ infrastructure/*.tfstate.*
 infrastructure/*.tfplan
 infrastructure/*.tfvars
 !infrastructure/*.tfvars.example
+# terraform.tfvars is the exception and is committed: it holds this single
+# environment's non-secret values (region, VM sizes, names) so they're readable
+# in a diff instead of buried in repository settings. The blanket rule above
+# still catches anything else — if you ever need a local override, put it in a
+# differently-named .tfvars and it stays ignored. Nothing secret goes in either:
+# this repo is public.
+!infrastructure/terraform.tfvars
 infrastructure/.terraform.lock.hcl.backup
 
 # Deployment

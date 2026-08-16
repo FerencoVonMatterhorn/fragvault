@@ -76,11 +76,12 @@ Neither `ParserVersion` nor `DetectorVersion` is bumped: nothing about how event
 ## Consequences
 
 - **A hard deadline in six weeks.** By 2026-09-30 the SKU must change or the VM stops. The variable comment carries the date.
-- **Role assignments need more than Contributor.** The CI service principal holds subscription-scope Contributor from `bootstrap-tfstate.sh`, which cannot create role assignments. It also needs *Role Based Access Control Administrator* (or Owner) before `enable_gpu_render_vm` can apply, or the two `azurerm_role_assignment` resources fail with `AuthorizationFailed`.
+- **Role assignments need more than Contributor.** The CI service principal holds subscription-scope Contributor from `bootstrap-tfstate.sh`, which cannot create role assignments. It also needs *Role Based Access Control Administrator* (or Owner), or the two `azurerm_role_assignment` resources fail with `AuthorizationFailed`.
 - **The Steam login is a manual step, once.** Automating Steam Guard is more fragile than clearing it by hand and capturing the result. The bootstrap script prints what remains to be done.
 - **The render VM is a pet, not cattle.** A specialized image and a machine-bound login mean this box has an identity. Acceptable for one appliance; it would not be for a fleet, and if renders ever need to run in parallel this decision is the first one to revisit.
 - **Demos now cost storage.** Capped at 800 MiB each by the downloader, tiered to Cool after seven days. Archive is deliberately avoided — rehydration takes hours and would turn a render into an overnight job.
-- **`function_app.tf` is now dead weight.** Orchestration will live in the Go backend beside the existing analysis worker, which already has the queue, the claim pattern and the database connection. The file stays inert until that lands, then goes.
+- **`function_app.tf` is gone.** Orchestration lives in the Go backend beside the existing analysis worker, which already has the queue, the claim pattern and the database connection. Nothing was ever applied from that file.
+- **The `enable_*` phase toggles are gone with it.** They existed so a config that modelled the whole architecture wouldn't bill for phases that hadn't started. Every phase has now started, so they only bought `count = ? 1 : 0` on every resource and `[0]` on every reference. Terraform now describes exactly what exists. The trade is that the config no longer applies cleanly until the GPU VM's prerequisites — NVSv4 quota and the RBAC role above — are actually in place. `moved.tf` carries the state through the address change and can be deleted after one successful apply.
 
 ## Alternatives rejected
 
