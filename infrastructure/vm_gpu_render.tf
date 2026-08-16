@@ -136,13 +136,17 @@ resource "azurerm_windows_virtual_machine" "gpu_render" {
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
-    # Windows Server takes ~30 GB and CS2 another ~35 GB, so the 127 GB
-    # default is adequate but not roomy. Premium rather than StandardSSD
-    # because this disk is the only thing billed while the VM is deallocated
-    # and it is also what start-up latency rides on; the delta is ~EUR 9/month.
+    # Measured on the built box: Windows Server ~26 GB and the Steam tree
+    # ~68 GB (CS2 itself reports 59,988,141,600 bytes to download, ~56 GB), for
+    # 82.5 GB used of 126.4 GB usable. That leaves ~44 GB free — enough, but
+    # this is not a disk with room for a second game. Do not size it down.
+    # Premium rather than StandardSSD because this disk is the only thing billed
+    # while the VM is deallocated and it is also what start-up latency rides on;
+    # the delta is ~EUR 9/month.
     #
-    # Scratch — demo downloads, frame spill — belongs on the 88 GiB ephemeral
-    # D: drive instead, which is wiped on deallocate and costs nothing.
+    # Scratch — demo downloads, frame spill — belongs on the ephemeral D: drive
+    # instead (~85 GB free), which is wiped on deallocate and costs nothing.
+    # With only 44 GB free here, that is a rule and not a preference.
     disk_size_gb = 128
   }
 

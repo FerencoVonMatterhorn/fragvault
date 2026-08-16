@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Captures the configured GPU render VM into an Azure Compute Gallery image, so
-# the box can be rebuilt without repeating the manual Steam login and the 35 GB
+# the box can be rebuilt without repeating the manual Steam login and the ~56 GB
 # CS2 download.
 #
 # Why a script and not Terraform: an image version is captured *from a running
@@ -88,7 +88,7 @@ else
     --location "$LOCATION"
 fi
 
-echo "==> Creating image version $IMAGE_VERSION (this takes a while — it copies ~70 GB)"
+echo "==> Creating image version $IMAGE_VERSION (this takes a while — it copies ~83 GB)"
 az sig image-version create \
   --resource-group "$RG_NAME" \
   --gallery-name "$GALLERY_NAME" \
@@ -122,14 +122,18 @@ credentials, because a specialized image already contains its accounts:
     --name $VM_NAME \\
     --image "$IMAGE_VERSION_ID" \\
     --specialized \\
-    --size Standard_NV4as_v4 \\
+    --size <gpu_render_vm_size from infrastructure/terraform.tfvars> \\
     --nics nic-fragvault-prod-gpu-render
+
+Take the size from terraform.tfvars rather than copying it from here: it is the
+single place that SKU is defined, and Standard_NV4as_v4 retires 2026-09-30. A
+restore onto the wrong size is a VM Terraform immediately wants to change.
 
 then bring it back under Terraform:
 
-  terraform import 'azurerm_windows_virtual_machine.gpu_render[0]' \\
+  terraform import azurerm_windows_virtual_machine.gpu_render \\
     /subscriptions/<sub>/resourceGroups/$RG_NAME/providers/Microsoft.Compute/virtualMachines/$VM_NAME
 
 Storage for the image version is billed as a snapshot — roughly EUR 5-9/month
-for a ~70 GB image. Delete old versions you are not restoring from.
+for a ~83 GB image. Delete old versions you are not restoring from.
 EOF

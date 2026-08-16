@@ -117,6 +117,22 @@ Write-Step 'Installing the Steam client'
 # logged-in Steam client, whatever steamcmd has downloaded.
 Invoke-Choco steam
 
+# CS2 refuses to launch without a running Steam client, and nobody is sitting at
+# this box to start one. Without this, every boot -- including every restore
+# from the golden image -- comes up unable to render until a human logs in and
+# starts Steam by hand, which is exactly the manual step the image exists to
+# remove. Found the hard way: after the first autologon reboot there was no Run
+# entry anywhere and no Steam process.
+#
+# HKLM rather than the render account's own Run key because this script runs as
+# SYSTEM and that user's hive is not loaded at bootstrap time. There is one
+# interactive account on this box, so machine-wide is equivalent. -silent starts
+# it to the tray without opening the client window.
+Write-Step 'Making Steam start with the console session'
+$steamExe = 'C:\Program Files (x86)\Steam\steam.exe'
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' `
+    -Name 'FragVaultSteam' -Value ('"' + $steamExe + '" -silent') -Type String -Force
+
 # --- HLAE --------------------------------------------------------------------
 Write-Step "Installing HLAE $HlaeVersion"
 $hlaeMarker = Join-Path $HlaeDir ".version-$HlaeVersion"
@@ -198,7 +214,7 @@ Remaining manual steps (once, over RDP -- see docs/adr-003-render-vm.md):
      the gc-sidecar's account: the sidecar holds gamesPlayed([730]) permanently
      and Steam allows one game session per account, so sharing it breaks match
      discovery.
-  2. Install CS2 (~35 GB) and let it finish.
+  2. Install CS2 and let it finish. It is ~56 GB, not the ~35 GB often quoted.
   3. Run C:\fragvault\Autologon64.exe to enable auto-logon. It stores the
      password in LSA secrets rather than the registry, which is why this is
      done by hand and not from this script.

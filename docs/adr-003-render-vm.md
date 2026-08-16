@@ -44,7 +44,7 @@ HLAE injects a DLL, so **CS2 is always launched with `-insecure`**, and the acco
 The README originally called for creating the VM per job and destroying it after. Start/deallocate is better on every axis that matters here:
 
 - A deallocated VM bills no compute. The idle cost is the 128 GB Premium OS disk, ~EUR 17/month.
-- Starting takes 60-90 seconds. Provisioning a 128 GB Windows box and installing 35 GB of CS2 takes closer to 45 minutes, and the game files cannot be baked into a marketplace image.
+- Starting takes 60-90 seconds. Provisioning a 128 GB Windows box and installing ~56 GB of CS2 takes well over an hour, and the game files cannot be baked into a marketplace image.
 - Terraform stays out of the runtime path. The orchestrator only ever calls start and deallocate, so creating infrastructure remains something that happens in a reviewed, approval-gated apply.
 
 An `azurerm_dev_test_global_vm_shutdown_schedule` at 03:00 is the backstop, not the mechanism — left running, this VM costs ~EUR 320/month.
@@ -59,7 +59,7 @@ So: a second dedicated account, no Prime needed (CS2 is free-to-play), treated a
 
 The Steam login is machine-bound. Sysprep resets the machine SID, which invalidates the sentry file and forces a fresh Steam Guard challenge on every rebuild — so a generalized image would defeat the point of capturing one.
 
-`scripts/capture-golden-image.sh` therefore captures a **specialized** image into an Azure Compute Gallery, no sysprep, retaining the logged-in Steam session and the 35 GB of game files. The cost is that `azurerm_windows_virtual_machine` cannot create from it: the provider always emits an `osProfile`, and Azure rejects that for specialized sources. Restoring is an `az vm create --specialized` followed by `terraform import`, documented at the bottom of that script.
+`scripts/capture-golden-image.sh` therefore captures a **specialized** image into an Azure Compute Gallery, no sysprep, retaining the logged-in Steam session and the ~56 GB of game files. The cost is that `azurerm_windows_virtual_machine` cannot create from it: the provider always emits an `osProfile`, and Azure rejects that for specialized sources. Restoring is an `az vm create --specialized` followed by `terraform import`, documented at the bottom of that script.
 
 That is an acceptable trade because the image is a **restore artifact, not a definition**. The definition is `gpu-render-bootstrap.ps1` plus the manual steps it prints, both of which are in git. This is the same split as `bootstrap/bootstrap-tfstate.sh`: things Terraform structurally cannot own live in an idempotent script beside it.
 
