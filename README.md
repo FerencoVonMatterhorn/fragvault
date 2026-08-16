@@ -27,9 +27,11 @@ Sign in with Steam, onboard once, and have your recent matches discovered by wal
 The game coordinator resolves a sharecode to a demo URL, the demo is parsed, and highlights fall out: multi-kills, clutches, opening duels and defuses, each with a clip window. Every match gets a scoreboard (K/A/D, ADR, HS%, MVPs) and a round-by-round history. Parsing is separated from detection, so the rules that decide what counts as a clutch are unit-tested without a demo fixture.
 
 **Phase 3 — Create highlights** 🚧 *in progress*
-Turn those timestamps into actual video. There is no headless CS2 and no server-side movie mode, so this means a Windows GPU VM running the real game against the real demo, recording with [HLAE](https://github.com/advancedfx/advancedfx) piped into ffmpeg. Terraform builds and configures that box today, and every parsed demo is now retained in blob storage so a clip can still be rendered months later, long after Valve has expired the download URL.
+Turn those timestamps into actual video. There is no headless CS2 and no server-side movie mode, so this means a Windows GPU VM running the real game against the real demo, recording with [HLAE](https://github.com/advancedfx/advancedfx) piped into ffmpeg.
 
-The VM is started and deallocated rather than created and destroyed — deallocated it bills nothing but its disk, and starting takes 90 seconds against 45 minutes to provision one from scratch. Left running it costs ~EUR 320/month, so the cost model depends entirely on it being asleep. Still to come: the render queue, the agent on the VM, and the API that ties them together. See [ADR-003](docs/adr-003-render-vm.md).
+That box now exists. Terraform builds it, a bootstrap script installs HLAE and the rest of its dependencies, and the two things a script can't do — the Steam login and the ~56 GB CS2 install — are done once by hand and captured into a *specialized* golden image, so a rebuild doesn't repeat them. CS2 launches under HLAE on the VM's Radeon Instinct MI25 with the recording hook injected. Every parsed demo is retained in blob storage, so a clip can still be rendered months later, long after Valve has expired the download URL.
+
+The VM is started and deallocated rather than created and destroyed — deallocated it bills nothing but its disk, and starting takes 90 seconds against the better part of an hour to build one from scratch. Left running it costs ~EUR 320/month, so the cost model depends entirely on it being asleep. Still to come: rendering a clip end to end, the render queue, the agent on the VM, and the API that ties them together. See [ADR-003](docs/adr-003-render-vm.md).
 
 **Phase 4 — Share with friends**
 Short links to rendered clips, served from blob storage through time-limited SAS URLs rather than a public container. Wants a clip page with an OpenGraph preview so a link dropped into Discord unfurls properly.
@@ -126,9 +128,14 @@ The script is idempotent and puts the account in its own resource group, so `ter
 ssh-keygen -t rsa -b 4096 -C fragvault -f ~/.ssh/id_rsa_fragvault
 ```
 
-**Resource providers.** A fresh subscription has nothing registered beyond `Microsoft.Resources`, and the error you get is a misleading `(SubscriptionNotFound) Subscription <id> was not found`. The bootstrap script registers `Microsoft.Storage`; the VM needs two more:
+**Resource providers.** A fresh subscription has nothing registered beyond `Microsoft.Resources`, and the error you get is a misleading `(SubscriptionNotFound) Subscription <id> was not found`. The bootstrap script registers `Microsoft.Storage`; the rest need doing by hand:
 
 ```sh
 az provider register --namespace Microsoft.Compute --wait
 az provider register --namespace Microsoft.Network --wait
+az provider register --namespace Microsoft.DevTestLab --wait
 ```
+
+`Microsoft.DevTestLab` backs the GPU VM's auto-shutdown schedule. Unregistered, it fails with that same misleading `(SubscriptionNotFound)` rather than anything mentioning DevTestLab.
+
+**The GPU render VM needs two more things before it will apply.** `bootstrap-tfstate.sh` grants the CI service principal subscription-scope Contributor, which *cannot create role assignments* — and the render VM creates two, for blob writes and for deallocating itself. It also needs **Role Based Access Control Administrator** (or Owner), granted once by hand, or the apply fails with `AuthorizationFailed`. Separately, the subscription needs NVSv4 quota in `swedencentral`; a new one has none, and the request is not instant.
